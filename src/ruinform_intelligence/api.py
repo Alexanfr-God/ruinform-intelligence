@@ -14,7 +14,7 @@ from .models import ProjectConstraints, ProjectState
 
 app = FastAPI(
     title="RUINFORM Intelligence",
-    version="0.2.3",
+    version="0.2.6.1",
     description="Evidence-first intelligence for physical matter.",
     dependencies=[Depends(require_api_access)],
 )
@@ -36,10 +36,12 @@ class MaterialEyeResponse(BaseModel):
 
 @app.get("/health")
 async def health() -> dict[str, str]:
+    storage = "postgres" if (os.getenv("DATABASE_URL") or os.getenv("RUINFORM_DATABASE_URL")) else "sqlite"
     return {
         "status": "ok",
         "service": "ruinform-intelligence",
-        "build": "RFM-INT-0002.3",
+        "build": "RFM-INT-0002.6.1",
+        "storage": storage,
     }
 
 
