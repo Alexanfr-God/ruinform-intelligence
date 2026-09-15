@@ -10,17 +10,17 @@ Its mission is to understand physical objects from evidence, discover valuable f
 
 ## Current build
 
-**RFM-INT-0001.3 — Evidence Contract**
+**RFM-INT-0002 — Form Architect + Feasibility Critic**
 
-The first trustworthy evidence loop now exists:
+The first real invention pipeline now exists:
 
-`EVIDENCE → MATERIAL EYE → CLAIMS → PROVENANCE CHECK → EVIDENCE GATE → FOLLOW-UP`
+`TRUSTED PROJECT STATE → FORM ARCHITECT → INTERNAL CANDIDATE POOL → FEASIBILITY CRITIC → RANKING → TOP FUTURES`
 
-Every current physical claim must carry a stable `property_key` and exact provenance to an evidence item. Follow-up claims explicitly identify whether prior knowledge was `confirmed`, `revised`, or `contradicted`, and point back to the exact prior observation IDs. Claim history is preserved inside `ProjectState`.
+Form Architect generates a broad internal set of materially honest future forms. Feasibility Critic reviews every candidate against the known matter, tools, skills and constraints, then rejects or revises weak ideas. Only candidates marked `pass` can be exposed to the user.
 
-The system rejects model output that invents evidence IDs, loses provenance, mislabels a prior property as new, or attempts to update a claim without linking to history.
+User preferences can shift ranking toward originality, artistic impact, usefulness, ease, or value without overriding the physical feasibility gates.
 
-No design concept is allowed to outrun the evidence.
+The current pipeline deliberately returns fewer than three visible futures if fewer than three concepts pass review. It never fills missing slots with weak ideas just to make the UI look complete.
 
 ## Local run
 
@@ -38,19 +38,19 @@ Health check:
 curl http://127.0.0.1:8000/health
 ```
 
-Material inspection:
+### 1. Inspect matter
 
-```bash
-curl -X POST http://127.0.0.1:8000/v1/material-eye/analyze \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "image_urls": ["https://example.com/object.jpg"],
-    "user_context": "Found in my workshop. I want to reuse it.",
-    "constraints": {"tools_available": ["scissors", "drill"]}
-  }'
-```
+`POST /v1/material-eye/analyze`
 
-Follow-up evidence is submitted to `POST /v1/evidence-loop/continue` with the current project state plus new images, measurements, or user statements.
+### 2. Continue evidence loop
+
+`POST /v1/evidence-loop/continue`
+
+### 3. Discover future forms
+
+`POST /v1/futures/generate`
+
+The future-forms endpoint accepts a contract-valid `ProjectState`, optional user intent, and preference weights for originality, artistic impact, usefulness, ease and value.
 
 Never commit API keys. `.env.example` contains names only.
 
