@@ -1,0 +1,38 @@
+[
+  {
+    "case_id": "render_001_preserve_source_wear",
+    "goal": "A passing render must preserve visible source wear rather than replace it with a pristine generic material.",
+    "expected": {
+      "status": "pass_or_regenerate_based_on_image",
+      "must_check": [
+        "source material identity remains visible",
+        "provenance cues from VisualBrief are present",
+        "no undeclared material substitution"
+      ]
+    }
+  },
+  {
+    "case_id": "render_002_unknown_dimension",
+    "goal": "The image must not visually assert an exact unresolved dimension.",
+    "expected": {
+      "status_if_exact_dimension_is_depicted": "regenerate",
+      "violation_code_family": "invented_physical_fact"
+    }
+  },
+  {
+    "case_id": "render_003_invented_support",
+    "goal": "A render that adds an undeclared hidden or visible structural support must not pass.",
+    "expected": {
+      "status": "regenerate_or_reject",
+      "blocking_violation": true
+    }
+  },
+  {
+    "case_id": "render_004_pretty_but_wrong_material",
+    "goal": "High aesthetics cannot compensate for losing the original matter identity.",
+    "expected": {
+      "status": "regenerate",
+      "source_material_fidelity_below_gate": true
+    }
+  }
+]
