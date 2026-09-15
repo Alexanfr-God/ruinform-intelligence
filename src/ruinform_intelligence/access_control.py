@@ -7,7 +7,11 @@ from fastapi import HTTPException, Request
 
 
 async def require_api_access(request: Request) -> None:
-    if request.url.path == "/health" or request.url.path.startswith("/lab"):
+    if (
+        request.url.path == "/health"
+        or request.url.path.startswith("/lab")
+        or request.url.path.startswith("/public/evidence/")
+    ):
         return
     expected = os.getenv("RUINFORM_API_TOKEN")
     if not expected:
