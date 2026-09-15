@@ -10,6 +10,7 @@ from .evidence_gate import can_advance_to_ideation
 from .future_models import CandidateForm, CandidatePool, FuturePreferences
 from .models import ProjectState
 from .prompt_loader import load_prompt_file
+from .reasoning_state import compact_state_json
 
 
 DEFAULT_MODEL = "gpt-5.6"
@@ -77,6 +78,26 @@ def _validate_candidate_pool(
         )
 
 
+def _concept_mode_context(state: ProjectState) -> str:
+    unknowns: list[str] = []
+    for material in state.materials:
+        for unknown in material.unknowns:
+            unknowns.append(
+                f"- {material.display_name} / {unknown.property_key}: {unknown.question} "
+                f"(consequence={unknown.consequence_if_unresolved})"
+            )
+    return (
+        "CONCEPT MODE IS ACTIVE. The user explicitly chose exploratory ideation before all physical facts were verified.\n"
+        "Treat every unresolved property as UNKNOWN, never as a fact. You may use conservative visual/design assumptions "
+        "only to propose concepts, and every such assumption must remain visible in unresolved_dependencies. "
+        "Do not claim engineering approval, structural safety, electrical safety, heat/flame safety, pressure safety, "
+        "food-contact safety, regulatory compliance, or manufacturability. Avoid concepts whose core value depends on "
+        "an unverified high-consequence property. Prefer reversible, non-load-bearing, low-energy, decorative or easily "
+        "verifiable transformations until evidence improves.\n\n"
+        "UNRESOLVED PROPERTIES:\n" + ("\n".join(unknowns) if unknowns else "- none")
+    )
+
+
 async def generate_candidate_pool(
     *,
     state: ProjectState,
@@ -89,12 +110,18 @@ async def generate_candidate_pool(
         assert_state_contract(state)
     except EvidenceContractError as exc:
         raise FormArchitectError("Project state failed the Evidence Contract") from exc
-    if not can_advance_to_ideation(state):
-        raise FormArchitectError("Project state still has critical physical unknowns")
 
     preferences = preferences or FuturePreferences()
+    if not can_advance_to_ideation(state) and not preferences.concept_mode:
+        raise FormArchitectError("Project state still has critical physical unknowns")
+
     model = model or os.getenv("RUINFORM_FORM_ARCHITECT_MODEL", DEFAULT_MODEL)
     client = client or AsyncOpenAI()
+    mode_context = (
+        _concept_mode_context(state)
+        if preferences.concept_mode
+        else "VERIFIED PATH. Use only established evidence and explicitly preserved unknowns."
+    )
 
     response = await client.responses.create(
         model=model,
@@ -107,8 +134,9 @@ async def generate_candidate_pool(
                     {
                         "type": "input_text",
                         "text": (
-                            "Discover future forms from this trusted physical state.\n\n"
-                            f"Project state: {state.model_dump_json()}\n\n"
+                            "Discover future forms from this physical project state.\n\n"
+                            f"MODE POLICY:\n{mode_context}\n\n"
+                            f"Project state: {compact_state_json(state)}\n\n"
                             f"Preferences: {preferences.model_dump_json()}\n\n"
                             f"User intent: {user_intent or 'open exploration'}"
                         ),

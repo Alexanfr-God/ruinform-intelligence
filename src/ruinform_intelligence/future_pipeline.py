@@ -96,12 +96,14 @@ async def _review_single_candidate(
     *,
     state: ProjectState,
     candidate: CandidateForm,
+    concept_mode: bool,
     client: AsyncOpenAI | None,
     critic_model: str | None,
 ) -> FeasibilityReview:
     batch = await review_candidate_pool(
         state=state,
         pool=CandidatePool(candidates=[candidate]),
+        concept_mode=concept_mode,
         client=client,
         model=critic_model,
     )
@@ -147,6 +149,7 @@ async def _revise_until_decided(
         current_review = await _review_single_candidate(
             state=state,
             candidate=current_candidate,
+            concept_mode=preferences.concept_mode,
             client=client,
             critic_model=critic_model,
         )
@@ -181,6 +184,7 @@ async def discover_future_forms(
         initial_batch = await review_candidate_pool(
             state=state,
             pool=initial_pool,
+            concept_mode=preferences.concept_mode,
             client=client,
             model=critic_model,
         )
@@ -237,6 +241,7 @@ async def discover_future_forms(
                 state=state,
                 candidate=item.candidate,
                 review=item.review,
+                concept_mode=preferences.concept_mode,
                 client=client,
                 model=visual_brief_model,
             )

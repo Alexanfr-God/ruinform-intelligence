@@ -14,11 +14,17 @@ async def discover_session_futures(
     max_revision_rounds: int,
     store: SqliteRunStore,
 ) -> TransformationSession:
-    if not can_advance_to_ideation(session.project_state):
+    verified_ready = can_advance_to_ideation(session.project_state)
+    concept_ready = session.reasoning_mode == "concept" and session.concept_mode_acknowledged
+    if not verified_ready and not concept_ready:
         raise ValueError("Project still needs more evidence before future discovery")
+
+    effective_preferences = preferences.model_copy(
+        update={"concept_mode": bool(concept_ready and not verified_ready)}
+    )
     futures = await discover_future_forms(
         state=session.project_state,
-        preferences=preferences,
+        preferences=effective_preferences,
         user_intent=user_intent,
         max_revision_rounds=max_revision_rounds,
     )
