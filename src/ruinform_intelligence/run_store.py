@@ -22,6 +22,7 @@ SessionStage = Literal[
     "completed",
     "failed",
 ]
+ReasoningMode = Literal["verified", "concept"]
 
 
 def utc_now_iso() -> str:
@@ -33,6 +34,9 @@ class TransformationSession(BaseModel):
     project_id: str
     stage: SessionStage
     project_state: ProjectState
+    reasoning_mode: ReasoningMode = "verified"
+    concept_mode_acknowledged: bool = False
+    concept_notice_version: str | None = None
     futures: FutureFormsResult | None = None
     selected_candidate_id: str | None = None
     render_result: RenderResult | None = None
