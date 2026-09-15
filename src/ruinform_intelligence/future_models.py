@@ -72,15 +72,50 @@ class ReviewBatch(StrictModel):
     reviews: list[FeasibilityReview]
 
 
+class RevisionRecord(BaseModel):
+    round_index: int = Field(ge=1, le=5)
+    critique_status: Literal["revise"]
+    requested_changes: list[str]
+    candidate_before: CandidateForm
+    candidate_after: CandidateForm
+
+
+class VisualMaterialTrace(StrictModel):
+    material_item_id: str
+    intended_location: str
+    source_character_to_preserve: str
+    appearance_constraints: list[str]
+
+
+class VisualBrief(StrictModel):
+    candidate_id: str
+    title: str
+    object_summary: str
+    silhouette: str
+    geometry_notes: list[str]
+    material_traces: list[VisualMaterialTrace]
+    visible_connections: list[str]
+    composition: str
+    camera: str
+    lighting: str
+    environment: str
+    provenance_cues: list[str]
+    unknowns_to_keep_ambiguous: list[str]
+    forbidden_inventions: list[str]
+
+
 class ReviewedFuture(BaseModel):
     candidate: CandidateForm
     review: FeasibilityReview
     rank_score: float = Field(ge=0.0, le=100.0)
+    revision_history: list[RevisionRecord] = Field(default_factory=list)
+    visual_brief: VisualBrief | None = None
 
 
 class FutureFormsResult(BaseModel):
     internal_candidate_count: int
     reviewed_candidate_count: int
+    revision_attempt_count: int = 0
     selected_futures: list[ReviewedFuture]
     needs_regeneration: bool = False
     regeneration_reason: str | None = None
