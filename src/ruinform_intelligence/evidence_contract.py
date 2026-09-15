@@ -23,8 +23,8 @@ class EvidenceContractError(ValueError):
         super().__init__("Evidence contract failed")
 
 
-def _all_observations(state: ProjectState) -> list[MaterialObservation]:
-    observations = list(state.claim_history)
+def _current_observations(state: ProjectState) -> list[MaterialObservation]:
+    observations: list[MaterialObservation] = []
     for material in state.materials:
         observations.extend(material.observations)
     return observations
@@ -45,8 +45,12 @@ def validate_state_contract(state: ProjectState) -> EvidenceContractReport:
             )
         evidence_by_id[item.evidence_id] = item
 
-    observations_by_id = {}
-    for observation in _all_observations(state):
+    history_by_id = {observation.observation_id: observation for observation in state.claim_history}
+    history_properties = {
+        observation.property_key for observation in state.claim_history if observation.property_key
+    }
+    observations_by_id = dict(history_by_id)
+    for observation in _current_observations(state):
         if observation.observation_id in observations_by_id:
             issues.append(
                 EvidenceContractIssue(
@@ -102,23 +106,41 @@ def validate_state_contract(state: ProjectState) -> EvidenceContractReport:
                         )
                     )
 
-            if observation.change_type == "new" and observation.prior_observation_ids:
-                issues.append(
-                    EvidenceContractIssue(
-                        code="new_claim_has_prior",
-                        message="A new claim cannot point to prior observations.",
-                        observation_id=observation.observation_id,
+            if observation.change_type == "new":
+                if observation.prior_observation_ids:
+                    issues.append(
+                        EvidenceContractIssue(
+                            code="new_claim_has_prior",
+                            message="A new claim cannot point to prior observations.",
+                            observation_id=observation.observation_id,
+                        )
                     )
-                )
-
-            if observation.change_type != "new" and not observation.prior_observation_ids:
-                issues.append(
-                    EvidenceContractIssue(
-                        code="claim_change_missing_prior",
-                        message="Confirmed, revised, or contradicted claims must cite prior observation ids.",
-                        observation_id=observation.observation_id,
+                if observation.property_key in history_properties:
+                    issues.append(
+                        EvidenceContractIssue(
+                            code="existing_property_marked_new",
+                            message="A property present in claim history cannot be marked new.",
+                            observation_id=observation.observation_id,
+                        )
                     )
-                )
+            else:
+                if not observation.prior_observation_ids:
+                    issues.append(
+                        EvidenceContractIssue(
+                            code="claim_change_missing_prior",
+                            message="Confirmed, revised, or contradicted claims must cite prior observation ids.",
+                            observation_id=observation.observation_id,
+                        )
+                    )
+                for prior_id in observation.prior_observation_ids:
+                    if prior_id not in history_by_id:
+                        issues.append(
+                            EvidenceContractIssue(
+                                code="prior_not_in_history",
+                                message=f"Claim change must point to claim history: {prior_id}",
+                                observation_id=observation.observation_id,
+                            )
+                        )
 
             for prior_id in observation.prior_observation_ids:
                 prior = observations_by_id.get(prior_id)
