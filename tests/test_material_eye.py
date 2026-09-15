@@ -8,7 +8,15 @@ from ruinform_intelligence.material_eye import (
     UnknownOutput,
     _to_project_state,
 )
-from ruinform_intelligence.models import ClaimKind, EvidenceItem, ProjectConstraints
+from ruinform_intelligence.models import (
+    ClaimKind,
+    EvidenceItem,
+    EvidenceRef,
+    MaterialItem,
+    MaterialObservation,
+    ProjectConstraints,
+    ProjectState,
+)
 
 
 def test_material_eye_maps_exact_evidence_and_blocks_on_critical_unknown():
@@ -103,3 +111,129 @@ def test_unknown_evidence_id_rejects_model_output():
             constraints=ProjectConstraints(),
             project_id=None,
         )
+
+
+def _prior_state_for_lineage() -> ProjectState:
+    image_ref = EvidenceRef(evidence_id="image_001", source_type="image")
+    return ProjectState(
+        project_id="project-lineage",
+        evidence=[EvidenceItem(evidence_id="image_001", source_type="image", uri="data:image/jpeg;base64,abc")],
+        materials=[
+            MaterialItem(
+                item_id="material_1",
+                display_name="Bottle",
+                observations=[
+                    MaterialObservation(
+                        observation_id="obs_color",
+                        property_key="surface_color",
+                        label="Green",
+                        claim_kind=ClaimKind.FACT,
+                        confidence=0.98,
+                        evidence=[image_ref],
+                    ),
+                    MaterialObservation(
+                        observation_id="obs_material",
+                        property_key="material_family",
+                        label="Appears to be glass",
+                        claim_kind=ClaimKind.HYPOTHESIS,
+                        confidence=0.88,
+                        evidence=[image_ref],
+                    ),
+                ],
+            )
+        ],
+    )
+
+
+def test_followup_repairs_prior_property_mismatch_instead_of_dropping_user_turn():
+    prior_state = _prior_state_for_lineage()
+    evidence = [
+        *prior_state.evidence,
+        EvidenceItem(
+            evidence_id="user_001",
+            source_type="user_statement",
+            text="Bottle is definitely glass.",
+        ),
+    ]
+    output = MaterialEyeOutput(
+        analysis_summary="User confirms glass.",
+        materials=[
+            MaterialOutput(
+                display_name="Bottle",
+                observations=[
+                    ObservationOutput(
+                        property_key="material_family",
+                        label="User identifies the vessel as glass",
+                        claim_kind="fact",
+                        confidence=0.99,
+                        evidence_ids=["user_001"],
+                        consequence_if_wrong="medium",
+                        change_type="revised",
+                        # Simulates the exact live failure: model linked this property to another property.
+                        prior_observation_ids=["obs_color"],
+                    )
+                ],
+                unknowns=[],
+            )
+        ],
+        next_user_request=None,
+    )
+
+    state = _to_project_state(
+        output=output,
+        evidence=evidence,
+        constraints=ProjectConstraints(),
+        project_id=prior_state.project_id,
+        prior_state=prior_state,
+    )
+
+    observation = state.materials[0].observations[0]
+    assert observation.change_type == "revised"
+    assert observation.prior_observation_ids == ["obs_material"]
+
+
+def test_followup_reclassifies_change_as_new_when_property_has_no_prior_lineage():
+    prior_state = _prior_state_for_lineage()
+    output = MaterialEyeOutput(
+        analysis_summary="A new measurement was supplied.",
+        materials=[
+            MaterialOutput(
+                display_name="Bottle",
+                observations=[
+                    ObservationOutput(
+                        property_key="overall_height",
+                        label="Height is 31 cm",
+                        claim_kind="fact",
+                        confidence=0.99,
+                        evidence_ids=["measure_001"],
+                        consequence_if_wrong="medium",
+                        change_type="confirmed",
+                        prior_observation_ids=["obs_material"],
+                    )
+                ],
+                unknowns=[],
+            )
+        ],
+        next_user_request=None,
+    )
+
+    state = _to_project_state(
+        output=output,
+        evidence=[
+            *prior_state.evidence,
+            EvidenceItem(
+                evidence_id="measure_001",
+                source_type="measurement",
+                property_key="overall_height",
+                value=31,
+                unit="cm",
+            ),
+        ],
+        constraints=ProjectConstraints(),
+        project_id=prior_state.project_id,
+        prior_state=prior_state,
+    )
+
+    observation = state.materials[0].observations[0]
+    assert observation.change_type == "new"
+    assert observation.prior_observation_ids == []
