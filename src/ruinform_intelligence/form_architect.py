@@ -38,6 +38,7 @@ def _validate_candidate_pool(
         raise FormArchitectError("Form Architect returned duplicate candidate IDs")
 
     material_ids = {material.item_id for material in state.materials}
+    avoided = {value.strip().lower() for value in preferences.avoid_categories}
     for candidate in pool.candidates:
         if not candidate.material_uses:
             raise FormArchitectError(f"{candidate.candidate_id} uses no source material")
@@ -54,6 +55,10 @@ def _validate_candidate_pool(
         if preferences.only_use_owned_materials and candidate.added_materials:
             raise FormArchitectError(
                 f"{candidate.candidate_id} violates only_use_owned_materials"
+            )
+        if candidate.category.lower() in avoided:
+            raise FormArchitectError(
+                f"{candidate.candidate_id} violates avoid_categories: {candidate.category}"
             )
 
 
