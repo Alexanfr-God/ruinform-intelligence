@@ -2,7 +2,7 @@ from ruinform_intelligence.server import app
 
 
 def test_live_transformation_routes_registered() -> None:
-    paths = {route.path for route in app.routes if hasattr(route, "path")}
+    paths = set(app.openapi()["paths"])
     assert "/v1/live-transformations/start" in paths
     assert "/v1/live-transformations/{session_id}" in paths
     assert "/v1/live-transformations/{session_id}/futures" in paths
