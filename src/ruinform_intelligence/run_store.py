@@ -133,7 +133,13 @@ class SqliteRunStore:
 
 
 class PostgresRunStore:
-    """Durable production store backed by PostgreSQL."""
+    """Durable production store backed by PostgreSQL.
+
+    Connection and schema initialization are intentionally lazy. A temporary database
+    issue must not prevent the web process from booting and exposing health information.
+    The first real store operation initializes the table and still fails loudly if the
+    database is unreachable; there is no silent fallback to SQLite in production.
+    """
 
     backend_name = "postgres"
 
@@ -141,7 +147,7 @@ class PostgresRunStore:
         self.database_url = database_url or os.getenv("DATABASE_URL") or os.getenv("RUINFORM_DATABASE_URL")
         if not self.database_url:
             raise RuntimeError("DATABASE_URL is required for PostgresRunStore")
-        self._init_db()
+        self._initialized = False
 
     def _connect(self):
         try:
@@ -150,7 +156,9 @@ class PostgresRunStore:
             raise RuntimeError("psycopg is required for PostgresRunStore") from exc
         return psycopg.connect(self.database_url)
 
-    def _init_db(self) -> None:
+    def _ensure_initialized(self) -> None:
+        if self._initialized:
+            return
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -165,8 +173,10 @@ class PostgresRunStore:
                     """
                 )
             conn.commit()
+        self._initialized = True
 
     def save(self, session: TransformationSession) -> TransformationSession:
+        self._ensure_initialized()
         saved = session.model_copy(update={"updated_at_iso": utc_now_iso()})
         with self._connect() as conn:
             with conn.cursor() as cur:
@@ -192,6 +202,7 @@ class PostgresRunStore:
         return saved
 
     def get(self, session_id: str) -> TransformationSession:
+        self._ensure_initialized()
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
