@@ -1,8 +1,16 @@
 [project]
 name = "ruinform-intelligence"
-version = "0.1.0"
+version = "0.1.1"
 requires-python = ">=3.11"
-dependencies = ["pydantic>=2.8.0", "fastapi>=0.115.0"]
+dependencies = [
+  "fastapi>=0.115.0",
+  "openai>=2.0.0",
+  "pydantic>=2.8.0",
+  "uvicorn[standard]>=0.30.0",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
