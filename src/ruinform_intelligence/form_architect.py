@@ -8,7 +8,7 @@ from openai import AsyncOpenAI
 
 from .evidence_contract import EvidenceContractError, assert_state_contract
 from .evidence_gate import can_advance_to_ideation
-from .future_models import CandidatePool, FuturePreferences
+from .future_models import CandidateForm, CandidatePool, FuturePreferences
 from .models import ProjectState
 
 
@@ -24,6 +24,39 @@ def load_form_architect_prompt() -> str:
     return PROMPT_PATH.read_text(encoding="utf-8")
 
 
+def validate_candidate_against_state(
+    *,
+    candidate: CandidateForm,
+    state: ProjectState,
+    preferences: FuturePreferences,
+) -> None:
+    if not candidate.material_uses:
+        raise FormArchitectError(f"{candidate.candidate_id} uses no source material")
+
+    material_ids = {material.item_id for material in state.materials}
+    unknown_material_ids = {
+        use.material_item_id
+        for use in candidate.material_uses
+        if use.material_item_id not in material_ids
+    }
+    if unknown_material_ids:
+        raise FormArchitectError(
+            f"{candidate.candidate_id} references unknown material IDs: "
+            + ", ".join(sorted(unknown_material_ids))
+        )
+
+    if preferences.only_use_owned_materials and candidate.added_materials:
+        raise FormArchitectError(
+            f"{candidate.candidate_id} violates only_use_owned_materials"
+        )
+
+    avoided = {value.strip().lower() for value in preferences.avoid_categories}
+    if candidate.category.lower() in avoided:
+        raise FormArchitectError(
+            f"{candidate.candidate_id} violates avoid_categories: {candidate.category}"
+        )
+
+
 def _validate_candidate_pool(
     *,
     pool: CandidatePool,
@@ -37,29 +70,12 @@ def _validate_candidate_pool(
     if len(candidate_ids) != len(set(candidate_ids)):
         raise FormArchitectError("Form Architect returned duplicate candidate IDs")
 
-    material_ids = {material.item_id for material in state.materials}
-    avoided = {value.strip().lower() for value in preferences.avoid_categories}
     for candidate in pool.candidates:
-        if not candidate.material_uses:
-            raise FormArchitectError(f"{candidate.candidate_id} uses no source material")
-        unknown_material_ids = {
-            use.material_item_id
-            for use in candidate.material_uses
-            if use.material_item_id not in material_ids
-        }
-        if unknown_material_ids:
-            raise FormArchitectError(
-                f"{candidate.candidate_id} references unknown material IDs: "
-                + ", ".join(sorted(unknown_material_ids))
-            )
-        if preferences.only_use_owned_materials and candidate.added_materials:
-            raise FormArchitectError(
-                f"{candidate.candidate_id} violates only_use_owned_materials"
-            )
-        if candidate.category.lower() in avoided:
-            raise FormArchitectError(
-                f"{candidate.candidate_id} violates avoid_categories: {candidate.category}"
-            )
+        validate_candidate_against_state(
+            candidate=candidate,
+            state=state,
+            preferences=preferences,
+        )
 
 
 async def generate_candidate_pool(
