@@ -10,6 +10,7 @@ from .evidence_gate import can_advance_to_ideation
 from .future_models import CandidateForm, CandidatePool, FuturePreferences
 from .models import ProjectState
 from .prompt_loader import load_prompt_file
+from .reasoning_state import compact_state_json
 
 
 DEFAULT_MODEL = "gpt-5.6"
@@ -135,7 +136,7 @@ async def generate_candidate_pool(
                         "text": (
                             "Discover future forms from this physical project state.\n\n"
                             f"MODE POLICY:\n{mode_context}\n\n"
-                            f"Project state: {state.model_dump_json()}\n\n"
+                            f"Project state: {compact_state_json(state)}\n\n"
                             f"Preferences: {preferences.model_dump_json()}\n\n"
                             f"User intent: {user_intent or 'open exploration'}"
                         ),
