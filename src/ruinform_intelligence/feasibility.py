@@ -8,6 +8,7 @@ from openai import AsyncOpenAI
 from .future_models import CandidatePool, ReviewBatch
 from .models import ProjectState
 from .prompt_loader import load_prompt_file
+from .reasoning_state import compact_state_json
 
 
 DEFAULT_MODEL = "gpt-5.6"
@@ -74,7 +75,7 @@ async def review_candidate_pool(
                         "text": (
                             "Review every future form against the physical project state.\n\n"
                             f"MODE POLICY: {_mode_policy(concept_mode)}\n\n"
-                            f"Project state: {state.model_dump_json()}\n\n"
+                            f"Project state: {compact_state_json(state)}\n\n"
                             f"Candidate pool: {pool.model_dump_json()}"
                         ),
                     }
