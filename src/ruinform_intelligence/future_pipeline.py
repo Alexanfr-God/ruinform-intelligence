@@ -19,6 +19,7 @@ from .visual_brief import VisualBriefError, generate_visual_brief
 
 
 MAX_REVISION_ROUNDS = 2
+MAX_REVISION_CANDIDATES = 5
 
 
 class FuturePipelineError(RuntimeError):
@@ -41,6 +42,28 @@ def rank_score(review: FeasibilityReview, preferences: FuturePreferences) -> flo
         else 0.0
     )
     return round(core + 0.55 * preference_average, 2)
+
+
+def prioritize_revision_candidates(
+    *,
+    pool: CandidatePool,
+    reviews_by_id: dict[str, FeasibilityReview],
+    preferences: FuturePreferences,
+    limit: int = MAX_REVISION_CANDIDATES,
+) -> list[CandidateForm]:
+    revisable = [
+        candidate
+        for candidate in pool.candidates
+        if reviews_by_id[candidate.candidate_id].status == "revise"
+    ]
+    revisable.sort(
+        key=lambda candidate: rank_score(
+            reviews_by_id[candidate.candidate_id],
+            preferences,
+        ),
+        reverse=True,
+    )
+    return revisable[:limit]
 
 
 def select_top_futures(
@@ -161,30 +184,48 @@ async def discover_future_forms(
             client=client,
             model=critic_model,
         )
-        initial_reviews = {review.candidate_id: review for review in initial_batch.reviews}
-        final_candidates: list[CandidateForm] = []
-        final_reviews: dict[str, FeasibilityReview] = {}
-        revision_history: dict[str, list[RevisionRecord]] = {}
 
-        for candidate in initial_pool.candidates:
-            final_candidate, final_review, history = await _revise_until_decided(
-                state=state,
-                candidate=candidate,
-                initial_review=initial_reviews[candidate.candidate_id],
+        reviews_by_id = {review.candidate_id: review for review in initial_batch.reviews}
+        candidates_by_id = {candidate.candidate_id: candidate for candidate in initial_pool.candidates}
+        revision_history: dict[str, list[RevisionRecord]] = {
+            candidate.candidate_id: [] for candidate in initial_pool.candidates
+        }
+
+        pass_count = sum(1 for review in initial_batch.reviews if review.status == "pass")
+        if pass_count < 3 and max_revision_rounds > 0:
+            revision_queue = prioritize_revision_candidates(
+                pool=initial_pool,
+                reviews_by_id=reviews_by_id,
                 preferences=preferences,
-                client=client,
-                revision_model=revision_model,
-                critic_model=critic_model,
-                max_rounds=max_revision_rounds,
             )
-            final_candidates.append(final_candidate)
-            final_reviews[final_candidate.candidate_id] = final_review
-            revision_history[final_candidate.candidate_id] = history
+            for candidate in revision_queue:
+                if pass_count >= 3:
+                    break
+                final_candidate, final_review, history = await _revise_until_decided(
+                    state=state,
+                    candidate=candidate,
+                    initial_review=reviews_by_id[candidate.candidate_id],
+                    preferences=preferences,
+                    client=client,
+                    revision_model=revision_model,
+                    critic_model=critic_model,
+                    max_rounds=max_revision_rounds,
+                )
+                candidates_by_id[candidate.candidate_id] = final_candidate
+                reviews_by_id[candidate.candidate_id] = final_review
+                revision_history[candidate.candidate_id] = history
+                if final_review.status == "pass":
+                    pass_count += 1
 
-        final_pool = CandidatePool(candidates=final_candidates)
+        final_pool = CandidatePool(
+            candidates=[
+                candidates_by_id[candidate.candidate_id]
+                for candidate in initial_pool.candidates
+            ]
+        )
         selected = select_top_futures(
             pool=final_pool,
-            reviews_by_id=final_reviews,
+            reviews_by_id=reviews_by_id,
             preferences=preferences,
             revision_history_by_id=revision_history,
             limit=3,
