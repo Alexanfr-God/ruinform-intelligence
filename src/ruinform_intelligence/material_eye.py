@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 from typing import Literal
 
 from openai import AsyncOpenAI
@@ -11,9 +10,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from .evidence_contract import EvidenceContractError, assert_state_contract
 from .evidence_gate import refresh_critical_unknowns
 from .models import ClaimKind, EvidenceItem, EvidenceRef, MaterialItem, MaterialObservation, ProjectConstraints, ProjectState, Unknown
+from .prompt_loader import load_prompt_file
 
 DEFAULT_MODEL = "gpt-5.6"
-PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "material_eye.md"
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -49,7 +48,7 @@ class MaterialEyeError(RuntimeError):
     pass
 
 def load_material_eye_prompt() -> str:
-    return PROMPT_PATH.read_text(encoding="utf-8")
+    return load_prompt_file("material_eye.md")
 
 def _structured_output_schema() -> dict:
     return MaterialEyeOutput.model_json_schema()
