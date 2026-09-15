@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field, HttpUrl
 
+from .access_control import require_api_access
 from .evidence_contract import EvidenceContractReport, validate_state_contract
 from .evidence_gate import can_advance_to_ideation
 from .material_eye import MaterialEyeError, analyze_materials
@@ -15,6 +16,7 @@ app = FastAPI(
     title="RUINFORM Intelligence",
     version="0.2.3",
     description="Evidence-first intelligence for physical matter.",
+    dependencies=[Depends(require_api_access)],
 )
 
 
