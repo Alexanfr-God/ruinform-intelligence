@@ -5,6 +5,7 @@ import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, HttpUrl
 
+from .evidence_contract import EvidenceContractReport, validate_state_contract
 from .evidence_gate import can_advance_to_ideation
 from .material_eye import MaterialEyeError, analyze_materials
 from .models import ProjectConstraints, ProjectState
@@ -12,7 +13,7 @@ from .models import ProjectConstraints, ProjectState
 
 app = FastAPI(
     title="RUINFORM Intelligence",
-    version="0.1.1",
+    version="0.1.3",
     description="Evidence-first intelligence for physical matter.",
 )
 
@@ -28,6 +29,7 @@ class MaterialEyeResponse(BaseModel):
     analysis_summary: str
     project_state: ProjectState
     can_advance_to_ideation: bool
+    evidence_contract: EvidenceContractReport
 
 
 @app.get("/health")
@@ -35,7 +37,7 @@ async def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "ruinform-intelligence",
-        "build": "RFM-INT-0001.1",
+        "build": "RFM-INT-0001.3",
     }
 
 
@@ -63,4 +65,5 @@ async def material_eye_analyze(payload: MaterialEyeRequest) -> MaterialEyeRespon
         analysis_summary=summary,
         project_state=state,
         can_advance_to_ideation=can_advance_to_ideation(state),
+        evidence_contract=validate_state_contract(state),
     )
