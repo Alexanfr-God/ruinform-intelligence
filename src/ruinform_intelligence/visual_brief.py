@@ -8,6 +8,7 @@ from openai import AsyncOpenAI
 from .future_models import CandidateForm, FeasibilityReview, VisualBrief
 from .models import ProjectState
 from .prompt_loader import load_prompt_file
+from .reasoning_state import compact_state_json
 
 
 DEFAULT_MODEL = "gpt-5.6"
@@ -109,7 +110,7 @@ async def generate_visual_brief(
                         "text": (
                             "Create a renderer-safe visual brief for this approved future form.\n\n"
                             f"MODE POLICY: {mode_policy}\n\n"
-                            f"Project state: {state.model_dump_json()}\n\n"
+                            f"Project state: {compact_state_json(state)}\n\n"
                             f"Approved candidate: {candidate.model_dump_json()}\n\n"
                             f"Feasibility review: {review.model_dump_json()}"
                         ),
