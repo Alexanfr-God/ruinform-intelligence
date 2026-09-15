@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 
 from openai import AsyncOpenAI
 
 from .future_models import ReviewedFuture
+from .prompt_loader import load_prompt_file
 from .render_models import ProviderRender, RenderCritique, RenderRequest
 
 DEFAULT_MODEL = "gpt-5.6"
-PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "render_critic.md"
 
 
 class RenderReviewAgentError(RuntimeError):
@@ -18,7 +17,7 @@ class RenderReviewAgentError(RuntimeError):
 
 
 def load_prompt() -> str:
-    return PROMPT_PATH.read_text(encoding="utf-8")
+    return load_prompt_file("render_critic.md")
 
 
 async def evaluate_render(

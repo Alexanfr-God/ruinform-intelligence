@@ -2,16 +2,15 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 
 from openai import AsyncOpenAI
 
 from .future_models import CandidatePool, ReviewBatch
 from .models import ProjectState
+from .prompt_loader import load_prompt_file
 
 
 DEFAULT_MODEL = "gpt-5.6"
-PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "feasibility_critic.md"
 
 
 class FeasibilityError(RuntimeError):
@@ -19,7 +18,7 @@ class FeasibilityError(RuntimeError):
 
 
 def load_feasibility_prompt() -> str:
-    return PROMPT_PATH.read_text(encoding="utf-8")
+    return load_prompt_file("feasibility_critic.md")
 
 
 def _validate_review_batch(*, pool: CandidatePool, batch: ReviewBatch) -> None:

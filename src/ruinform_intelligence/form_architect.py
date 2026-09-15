@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 
 from openai import AsyncOpenAI
 
@@ -10,10 +9,10 @@ from .evidence_contract import EvidenceContractError, assert_state_contract
 from .evidence_gate import can_advance_to_ideation
 from .future_models import CandidateForm, CandidatePool, FuturePreferences
 from .models import ProjectState
+from .prompt_loader import load_prompt_file
 
 
 DEFAULT_MODEL = "gpt-5.6"
-PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "form_architect.md"
 
 
 class FormArchitectError(RuntimeError):
@@ -21,7 +20,7 @@ class FormArchitectError(RuntimeError):
 
 
 def load_form_architect_prompt() -> str:
-    return PROMPT_PATH.read_text(encoding="utf-8")
+    return load_prompt_file("form_architect.md")
 
 
 def validate_candidate_against_state(
