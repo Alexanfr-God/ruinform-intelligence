@@ -20,11 +20,28 @@ def _candidate(candidate_id: str, material_id: str) -> CandidateForm:
         category="functional_art",
         artistic_thesis="Preserve the source trace while changing its role.",
         transformation_logic="Reconfigure existing matter into a new composition.",
-        material_uses=[MaterialUse(material_item_id=material_id, role="primary body")],
+        material_uses=[
+            MaterialUse(
+                material_item_id=material_id,
+                role="primary body",
+                estimated_fraction=None,
+                note=None,
+            )
+        ],
+        added_materials=[],
+        required_tools=[],
+        key_operations=["reconfigure"],
+        unresolved_dependencies=[],
     )
 
 
-def _review(candidate_id: str, *, status: str = "pass", originality: int = 80, usefulness: int = 60) -> FeasibilityReview:
+def _review(
+    candidate_id: str,
+    *,
+    status: str = "pass",
+    originality: int = 80,
+    usefulness: int = 60,
+) -> FeasibilityReview:
     return FeasibilityReview(
         candidate_id=candidate_id,
         status=status,
@@ -35,6 +52,9 @@ def _review(candidate_id: str, *, status: str = "pass", originality: int = 80, u
         artistic_impact_score=88,
         usefulness_score=usefulness,
         value_potential_score=70,
+        reasons=[],
+        required_changes=[],
+        unresolved_dependencies=[],
     )
 
 
