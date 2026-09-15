@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from .evidence_media import externalize_state_for_render
 from .render_gateway import render_future
 from .render_provider import RenderProvider
 from .run_store import SqliteRunStore, TransformationSession
@@ -63,9 +64,13 @@ async def render_session_candidate(
             update={"stage": "rendering", "selected_candidate_id": candidate_id}
         )
     )
+    render_state = externalize_state_for_render(
+        session.project_state,
+        session_id=session.session_id,
+    )
     logger.info("render provider:start session=%s candidate=%s", session.session_id, candidate_id)
     result = await render_future(
-        state=session.project_state,
+        state=render_state,
         future=future,
         provider=provider,
         aspect_ratio=aspect_ratio,
