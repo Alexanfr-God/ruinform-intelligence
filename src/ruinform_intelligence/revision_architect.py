@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 
 from openai import AsyncOpenAI
 
 from .form_architect import FormArchitectError, validate_candidate_against_state
 from .future_models import CandidateForm, FeasibilityReview, FuturePreferences
 from .models import ProjectState
+from .prompt_loader import load_prompt_file
 
 
 DEFAULT_MODEL = "gpt-5.6"
-PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "revision_architect.md"
 
 
 class RevisionArchitectError(RuntimeError):
@@ -20,7 +19,7 @@ class RevisionArchitectError(RuntimeError):
 
 
 def load_revision_prompt() -> str:
-    return PROMPT_PATH.read_text(encoding="utf-8")
+    return load_prompt_file("revision_architect.md")
 
 
 async def revise_candidate(
