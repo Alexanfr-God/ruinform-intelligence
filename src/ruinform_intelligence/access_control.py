@@ -7,6 +7,8 @@ from fastapi import HTTPException, Request
 
 
 async def require_api_access(request: Request) -> None:
+    if request.url.path == "/health":
+        return
     expected = os.getenv("RUINFORM_API_TOKEN")
     if not expected:
         raise HTTPException(status_code=503, detail="RUINFORM_API_TOKEN is not configured")
