@@ -21,6 +21,7 @@ class EvidenceRef(BaseModel):
 
 class MaterialObservation(BaseModel):
     observation_id: str = Field(default_factory=lambda: str(uuid4()))
+    property_key: str | None = None
     label: str
     claim_kind: ClaimKind
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -30,6 +31,7 @@ class MaterialObservation(BaseModel):
 
 class Unknown(BaseModel):
     unknown_id: str = Field(default_factory=lambda: str(uuid4()))
+    property_key: str | None = None
     question: str
     reason: str
     consequence_if_unresolved: Literal["low", "medium", "high"]
