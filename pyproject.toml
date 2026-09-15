@@ -1,11 +1,12 @@
 [project]
 name = "ruinform-intelligence"
-version = "0.2.5"
+version = "0.2.6"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115.0",
   "httpx>=0.28.0",
   "openai>=2.0.0",
+  "psycopg[binary]>=3.2.0",
   "pydantic>=2.8.0",
   "python-multipart>=0.0.20",
   "uvicorn[standard]>=0.30.0",
