@@ -34,6 +34,7 @@ def _enforce_renderer_boundaries(
     state: ProjectState,
     candidate: CandidateForm,
     brief: VisualBrief,
+    concept_mode: bool,
 ) -> VisualBrief:
     if brief.candidate_id != candidate.candidate_id:
         raise VisualBriefError("Visual brief candidate_id does not match candidate")
@@ -55,6 +56,13 @@ def _enforce_renderer_boundaries(
         "Do not add source materials or purchased parts that are absent from the approved candidate.",
         "Do not depict the render as engineering proof or certification.",
     ]
+    if concept_mode:
+        deterministic_forbidden.extend(
+            [
+                "This is Concept Mode: keep proportions approximate where dimensions are unknown.",
+                "Do not visually imply tested safety, structural adequacy, electrical compliance, heat resistance, or manufacturability.",
+            ]
+        )
     for key in unresolved:
         deterministic_forbidden.append(f"Do not visually resolve unknown property: {key}.")
 
@@ -72,6 +80,7 @@ async def generate_visual_brief(
     state: ProjectState,
     candidate: CandidateForm,
     review: FeasibilityReview,
+    concept_mode: bool = False,
     client: AsyncOpenAI | None = None,
     model: str | None = None,
 ) -> VisualBrief:
@@ -80,6 +89,12 @@ async def generate_visual_brief(
 
     model = model or os.getenv("RUINFORM_VISUAL_BRIEF_MODEL", DEFAULT_MODEL)
     client = client or AsyncOpenAI()
+    mode_policy = (
+        "CONCEPT MODE: create an exploratory visualization only. Preserve all unknown dimensions/properties as ambiguous; "
+        "do not turn assumptions into visible engineering facts."
+        if concept_mode
+        else "VERIFIED PATH: use the established project state and preserve remaining unknowns."
+    )
 
     response = await client.responses.create(
         model=model,
@@ -93,6 +108,7 @@ async def generate_visual_brief(
                         "type": "input_text",
                         "text": (
                             "Create a renderer-safe visual brief for this approved future form.\n\n"
+                            f"MODE POLICY: {mode_policy}\n\n"
                             f"Project state: {state.model_dump_json()}\n\n"
                             f"Approved candidate: {candidate.model_dump_json()}\n\n"
                             f"Feasibility review: {review.model_dump_json()}"
@@ -122,4 +138,5 @@ async def generate_visual_brief(
         state=state,
         candidate=candidate,
         brief=brief,
+        concept_mode=concept_mode,
     )
