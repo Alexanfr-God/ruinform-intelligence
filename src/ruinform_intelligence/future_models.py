@@ -17,6 +17,7 @@ class FuturePreferences(BaseModel):
     value: float = Field(default=1.0, ge=0.0, le=3.0)
     only_use_owned_materials: bool = False
     avoid_categories: list[str] = Field(default_factory=list)
+    concept_mode: bool = False
 
 
 class MaterialUse(StrictModel):
