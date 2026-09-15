@@ -10,17 +10,17 @@ Its mission is to understand physical objects from evidence, discover valuable f
 
 ## Current build
 
-**RFM-INT-0002 — Form Architect + Feasibility Critic**
+**RFM-INT-0002.1 — Critic Loop + Visual Brief**
 
-The first real invention pipeline now exists:
+The invention path is now:
 
-`TRUSTED PROJECT STATE → FORM ARCHITECT → INTERNAL CANDIDATE POOL → FEASIBILITY CRITIC → RANKING → TOP FUTURES`
+`TRUSTED PROJECT STATE → FORM ARCHITECT → CANDIDATE POOL → FEASIBILITY CRITIC → BOUNDED REVISION → PASS → RANKING → VISUAL BRIEF`
 
-Form Architect generates a broad internal set of materially honest future forms. Feasibility Critic reviews every candidate against the known matter, tools, skills and constraints, then rejects or revises weak ideas. Only candidates marked `pass` can be exposed to the user.
+Form Architect generates a broad internal pool. Feasibility Critic reviews every candidate. Promising candidates marked `revise` may go through a bounded revision loop and are reviewed again. `reject` never becomes visible to the user, and a candidate that still has `revise` status after the allowed rounds is not silently promoted.
 
-User preferences can shift ranking toward originality, artistic impact, usefulness, ease, or value without overriding the physical feasibility gates.
+Only passed futures receive a renderer-facing Visual Brief. That brief carries material identity, provenance cues, camera/composition direction, unresolved physical unknowns, and a deterministic forbidden-invention list so visual generation cannot quietly turn unknown properties into apparent facts.
 
-The current pipeline deliberately returns fewer than three visible futures if fewer than three concepts pass review. It never fills missing slots with weak ideas just to make the UI look complete.
+A photorealistic render remains a proposal, not physical evidence.
 
 ## Local run
 
@@ -28,9 +28,10 @@ The current pipeline deliberately returns fewer than three visible futures if fe
 python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
-export OPENAI_API_KEY='...'
 uvicorn ruinform_intelligence.server:app --reload
 ```
+
+The runtime expects the model API credential to be configured as a server environment secret. Never commit credentials to the repository.
 
 Health check:
 
@@ -50,9 +51,7 @@ curl http://127.0.0.1:8000/health
 
 `POST /v1/futures/generate`
 
-The future-forms endpoint accepts a contract-valid `ProjectState`, optional user intent, and preference weights for originality, artistic impact, usefulness, ease and value.
-
-Never commit API keys. `.env.example` contains names only.
+The future-forms endpoint accepts a contract-valid `ProjectState`, optional user intent, preference weights for originality, artistic impact, usefulness, ease and value, plus a bounded revision-round setting.
 
 ## Repository map
 

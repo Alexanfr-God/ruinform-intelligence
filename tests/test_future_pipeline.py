@@ -7,8 +7,13 @@ from ruinform_intelligence.future_models import (
     FeasibilityReview,
     FuturePreferences,
     MaterialUse,
+    RevisionRecord,
 )
-from ruinform_intelligence.future_pipeline import rank_score, select_top_futures
+from ruinform_intelligence.future_pipeline import (
+    prioritize_revision_candidates,
+    rank_score,
+    select_top_futures,
+)
 from ruinform_intelligence.models import MaterialItem, ProjectState
 
 
@@ -89,6 +94,30 @@ def test_rank_score_respects_user_priorities() -> None:
     assert rank_score(review, originality_first) > rank_score(review, usefulness_first)
 
 
+def test_revision_queue_prioritizes_strongest_revisable_candidates() -> None:
+    pool = CandidatePool(
+        candidates=[
+            _candidate("candidate_01", "material_1"),
+            _candidate("candidate_02", "material_1"),
+            _candidate("candidate_03", "material_1"),
+        ]
+    )
+    reviews = {
+        "candidate_01": _review("candidate_01", status="revise", originality=60),
+        "candidate_02": _review("candidate_02", status="revise", originality=95),
+        "candidate_03": _review("candidate_03", status="pass", originality=100),
+    }
+
+    queued = prioritize_revision_candidates(
+        pool=pool,
+        reviews_by_id=reviews,
+        preferences=FuturePreferences(originality=3, usefulness=0, artistic_impact=0, ease=0, value=0),
+        limit=1,
+    )
+
+    assert [candidate.candidate_id for candidate in queued] == ["candidate_02"]
+
+
 def test_selection_hides_non_passing_candidates() -> None:
     material_id = "material_1"
     pool = CandidatePool(
@@ -112,3 +141,28 @@ def test_selection_hides_non_passing_candidates() -> None:
     )
 
     assert [item.candidate.candidate_id for item in selected] == ["candidate_01", "candidate_03"]
+
+
+def test_selection_preserves_revision_lineage() -> None:
+    before = _candidate("candidate_01", "material_1")
+    after = before.model_copy(update={"name": "Future candidate_01 revised"})
+    history = [
+        RevisionRecord(
+            round_index=1,
+            critique_status="revise",
+            requested_changes=["reduce unsupported span"],
+            candidate_before=before,
+            candidate_after=after,
+        )
+    ]
+
+    selected = select_top_futures(
+        pool=CandidatePool(candidates=[after]),
+        reviews_by_id={"candidate_01": _review("candidate_01")},
+        preferences=FuturePreferences(),
+        revision_history_by_id={"candidate_01": history},
+        limit=1,
+    )
+
+    assert selected[0].revision_history[0].candidate_before.name == before.name
+    assert selected[0].revision_history[0].candidate_after.name == after.name
