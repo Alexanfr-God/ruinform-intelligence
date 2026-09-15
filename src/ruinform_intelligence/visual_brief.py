@@ -2,16 +2,15 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 
 from openai import AsyncOpenAI
 
 from .future_models import CandidateForm, FeasibilityReview, VisualBrief
 from .models import ProjectState
+from .prompt_loader import load_prompt_file
 
 
 DEFAULT_MODEL = "gpt-5.6"
-PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "visual_brief.md"
 
 
 class VisualBriefError(RuntimeError):
@@ -19,7 +18,7 @@ class VisualBriefError(RuntimeError):
 
 
 def load_visual_brief_prompt() -> str:
-    return PROMPT_PATH.read_text(encoding="utf-8")
+    return load_prompt_file("visual_brief.md")
 
 
 def unresolved_property_keys(state: ProjectState) -> list[str]:
@@ -59,9 +58,7 @@ def _enforce_renderer_boundaries(
     for key in unresolved:
         deterministic_forbidden.append(f"Do not visually resolve unknown property: {key}.")
 
-    forbidden = list(
-        dict.fromkeys([*brief.forbidden_inventions, *deterministic_forbidden])
-    )
+    forbidden = list(dict.fromkeys([*brief.forbidden_inventions, *deterministic_forbidden]))
     return brief.model_copy(
         update={
             "unknowns_to_keep_ambiguous": unknowns,
