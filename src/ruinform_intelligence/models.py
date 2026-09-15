@@ -83,6 +83,7 @@ class ProjectState(BaseModel):
     ] = "evidence_collection"
     evidence: list[EvidenceItem] = Field(default_factory=list)
     materials: list[MaterialItem] = Field(default_factory=list)
+    claim_history: list[MaterialObservation] = Field(default_factory=list)
     constraints: ProjectConstraints = Field(default_factory=ProjectConstraints)
     unresolved_critical_unknowns: list[str] = Field(default_factory=list)
     next_user_request: str | None = None
