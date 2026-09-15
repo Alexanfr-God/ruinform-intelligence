@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
 class FuturePreferences(BaseModel):
@@ -15,14 +19,14 @@ class FuturePreferences(BaseModel):
     avoid_categories: list[str] = Field(default_factory=list)
 
 
-class MaterialUse(BaseModel):
+class MaterialUse(StrictModel):
     material_item_id: str
     role: str
-    estimated_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
-    note: str | None = None
+    estimated_fraction: float | None = Field(ge=0.0, le=1.0)
+    note: str | None
 
 
-class CandidateForm(BaseModel):
+class CandidateForm(StrictModel):
     candidate_id: str
     name: str
     one_line: str
@@ -39,17 +43,17 @@ class CandidateForm(BaseModel):
     artistic_thesis: str
     transformation_logic: str
     material_uses: list[MaterialUse]
-    added_materials: list[str] = Field(default_factory=list)
-    required_tools: list[str] = Field(default_factory=list)
-    key_operations: list[str] = Field(default_factory=list)
-    unresolved_dependencies: list[str] = Field(default_factory=list)
+    added_materials: list[str]
+    required_tools: list[str]
+    key_operations: list[str]
+    unresolved_dependencies: list[str]
 
 
-class CandidatePool(BaseModel):
+class CandidatePool(StrictModel):
     candidates: list[CandidateForm]
 
 
-class FeasibilityReview(BaseModel):
+class FeasibilityReview(StrictModel):
     candidate_id: str
     status: Literal["pass", "revise", "reject"]
     feasibility_score: int = Field(ge=0, le=100)
@@ -59,12 +63,12 @@ class FeasibilityReview(BaseModel):
     artistic_impact_score: int = Field(ge=0, le=100)
     usefulness_score: int = Field(ge=0, le=100)
     value_potential_score: int = Field(ge=0, le=100)
-    reasons: list[str] = Field(default_factory=list)
-    required_changes: list[str] = Field(default_factory=list)
-    unresolved_dependencies: list[str] = Field(default_factory=list)
+    reasons: list[str]
+    required_changes: list[str]
+    unresolved_dependencies: list[str]
 
 
-class ReviewBatch(BaseModel):
+class ReviewBatch(StrictModel):
     reviews: list[FeasibilityReview]
 
 
