@@ -1,4 +1,4 @@
-from ruinform_intelligence.evidence_loop import MeasurementInput, unknown_keys
+from ruinform_intelligence.evidence_loop import MeasurementInput, _new_evidence, unknown_keys
 from ruinform_intelligence.models import MaterialItem, ProjectState, Unknown
 
 
@@ -39,7 +39,23 @@ def test_unknown_keys_falls_back_to_normalized_question() -> None:
     assert unknown_keys(state) == {"what_is_the_usable_width"}
 
 
-def test_measurement_input_is_structured() -> None:
-    item = MeasurementInput(label="wall thickness", value=2.1, unit="mm", method="caliper")
-    assert item.value == 2.1
-    assert item.unit == "mm"
+def test_measurement_input_becomes_structured_evidence() -> None:
+    measurement = MeasurementInput(
+        label="wall thickness",
+        property_key="wall_thickness",
+        value=2.1,
+        unit="mm",
+        method="caliper",
+    )
+    items = _new_evidence(
+        new_image_urls=[],
+        user_statement=None,
+        measurements=[measurement],
+    )
+
+    assert len(items) == 1
+    assert items[0].source_type == "measurement"
+    assert items[0].property_key == "wall_thickness"
+    assert items[0].value == 2.1
+    assert items[0].unit == "mm"
+    assert items[0].evidence_id.startswith("measure_")

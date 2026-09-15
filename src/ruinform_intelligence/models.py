@@ -7,6 +7,10 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 
+EvidenceSourceType = Literal["image", "user_statement", "measurement", "tool_result"]
+ClaimChangeType = Literal["new", "confirmed", "revised", "contradicted"]
+
+
 class ClaimKind(str, Enum):
     FACT = "fact"
     HYPOTHESIS = "hypothesis"
@@ -15,7 +19,7 @@ class ClaimKind(str, Enum):
 
 class EvidenceRef(BaseModel):
     evidence_id: str
-    source_type: Literal["image", "user_statement", "measurement", "tool_result"]
+    source_type: EvidenceSourceType
     note: str | None = None
 
 
@@ -27,6 +31,8 @@ class MaterialObservation(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     evidence: list[EvidenceRef] = Field(default_factory=list)
     consequence_if_wrong: Literal["low", "medium", "high"] = "low"
+    change_type: ClaimChangeType = "new"
+    prior_observation_ids: list[str] = Field(default_factory=list)
 
 
 class Unknown(BaseModel):
@@ -47,9 +53,12 @@ class MaterialItem(BaseModel):
 
 class EvidenceItem(BaseModel):
     evidence_id: str = Field(default_factory=lambda: str(uuid4()))
-    source_type: Literal["image", "user_statement", "measurement", "tool_result"]
+    source_type: EvidenceSourceType
     uri: str | None = None
     text: str | None = None
+    property_key: str | None = None
+    value: str | float | int | bool | None = None
+    unit: str | None = None
     created_at_iso: str | None = None
 
 
@@ -74,6 +83,7 @@ class ProjectState(BaseModel):
     ] = "evidence_collection"
     evidence: list[EvidenceItem] = Field(default_factory=list)
     materials: list[MaterialItem] = Field(default_factory=list)
+    claim_history: list[MaterialObservation] = Field(default_factory=list)
     constraints: ProjectConstraints = Field(default_factory=ProjectConstraints)
     unresolved_critical_unknowns: list[str] = Field(default_factory=list)
     next_user_request: str | None = None
