@@ -35,7 +35,7 @@ def _enforce_renderer_boundaries(
     state: ProjectState,
     candidate: CandidateForm,
     brief: VisualBrief,
-    concept_mode: bool,
+    concept_mode: bool = False,
 ) -> VisualBrief:
     if brief.candidate_id != candidate.candidate_id:
         raise VisualBriefError("Visual brief candidate_id does not match candidate")
