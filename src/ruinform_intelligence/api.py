@@ -13,7 +13,7 @@ from .models import ProjectConstraints, ProjectState
 
 app = FastAPI(
     title="RUINFORM Intelligence",
-    version="0.2.2",
+    version="0.2.3",
     description="Evidence-first intelligence for physical matter.",
 )
 
@@ -37,7 +37,7 @@ async def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "ruinform-intelligence",
-        "build": "RFM-INT-0002.2",
+        "build": "RFM-INT-0002.3",
     }
 
 
