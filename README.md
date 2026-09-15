@@ -10,16 +10,49 @@ Its mission is to understand physical objects from evidence, discover valuable f
 
 ## Current build
 
-**RFM-INT-0001 — Material Intelligence**
+**RFM-INT-0001.1 — Real Material Eye**
 
-The first build deliberately solves one narrow problem well: given evidence about physical objects, create a structured project state that separates facts, hypotheses, unknowns, confidence, and required follow-up evidence.
+The first live intelligence path now exists:
+
+`IMAGE(S) → MATERIAL EYE → PROJECT STATE → EVIDENCE GATE → FOLLOW-UP REQUEST`
+
+The system separates facts, hypotheses and unknowns, links observations back to image evidence, and blocks ideation while high-consequence physical unknowns remain unresolved.
 
 No design concept is allowed to outrun the evidence.
 
+## Local run
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+export OPENAI_API_KEY='...'
+uvicorn ruinform_intelligence.api:app --reload
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Material inspection:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/material-eye/analyze \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "image_urls": ["https://example.com/object.jpg"],
+    "user_context": "Found in my workshop. I want to reuse it.",
+    "constraints": {"tools_available": ["scissors", "drill"]}
+  }'
+```
+
+Never commit API keys. `.env.example` contains names only.
+
 ## Repository map
 
-- `src/ruinform_intelligence/` — executable AI core
-- `schemas/` — machine-readable contracts for project state and evidence
+- `src/ruinform_intelligence/` — executable AI core and API
 - `prompts/` — agent instructions, versioned separately from code
 - `evals/` — regression cases and benchmarks
 - `docs/` — architecture, build records, decisions, failures and roadmap
