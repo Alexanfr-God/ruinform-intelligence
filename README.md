@@ -10,13 +10,15 @@ Its mission is to understand physical objects from evidence, discover valuable f
 
 ## Current build
 
-**RFM-INT-0001.1 — Real Material Eye**
+**RFM-INT-0001.3 — Evidence Contract**
 
-The first live intelligence path now exists:
+The first trustworthy evidence loop now exists:
 
-`IMAGE(S) → MATERIAL EYE → PROJECT STATE → EVIDENCE GATE → FOLLOW-UP REQUEST`
+`EVIDENCE → MATERIAL EYE → CLAIMS → PROVENANCE CHECK → EVIDENCE GATE → FOLLOW-UP`
 
-The system separates facts, hypotheses and unknowns, links observations back to image evidence, and blocks ideation while high-consequence physical unknowns remain unresolved.
+Every current physical claim must carry a stable `property_key` and exact provenance to an evidence item. Follow-up claims explicitly identify whether prior knowledge was `confirmed`, `revised`, or `contradicted`, and point back to the exact prior observation IDs. Claim history is preserved inside `ProjectState`.
+
+The system rejects model output that invents evidence IDs, loses provenance, mislabels a prior property as new, or attempts to update a claim without linking to history.
 
 No design concept is allowed to outrun the evidence.
 
@@ -27,7 +29,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
 export OPENAI_API_KEY='...'
-uvicorn ruinform_intelligence.api:app --reload
+uvicorn ruinform_intelligence.server:app --reload
 ```
 
 Health check:
@@ -47,6 +49,8 @@ curl -X POST http://127.0.0.1:8000/v1/material-eye/analyze \
     "constraints": {"tools_available": ["scissors", "drill"]}
   }'
 ```
+
+Follow-up evidence is submitted to `POST /v1/evidence-loop/continue` with the current project state plus new images, measurements, or user statements.
 
 Never commit API keys. `.env.example` contains names only.
 
