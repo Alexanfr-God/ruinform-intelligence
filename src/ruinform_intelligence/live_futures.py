@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import logging
+
 from .evidence_gate import can_advance_to_ideation
+from .fast_concept import discover_concept_futures_fast
 from .future_models import FuturePreferences
 from .future_pipeline import discover_future_forms
 from .run_store import SqliteRunStore, TransformationSession
+
+
+logger = logging.getLogger("ruinform.live_futures")
 
 
 async def discover_session_futures(
@@ -22,12 +28,33 @@ async def discover_session_futures(
     effective_preferences = preferences.model_copy(
         update={"concept_mode": bool(concept_ready and not verified_ready)}
     )
-    futures = await discover_future_forms(
-        state=session.project_state,
-        preferences=effective_preferences,
-        user_intent=user_intent,
-        max_revision_rounds=max_revision_rounds,
-    )
+
+    if effective_preferences.concept_mode:
+        logger.info("futures concept-fast:start session=%s", session.session_id)
+        futures = await discover_concept_futures_fast(
+            state=session.project_state,
+            preferences=effective_preferences,
+            user_intent=user_intent,
+        )
+        logger.info(
+            "futures concept-fast:done session=%s visible=%s",
+            session.session_id,
+            len(futures.selected_futures),
+        )
+    else:
+        logger.info("futures verified:start session=%s", session.session_id)
+        futures = await discover_future_forms(
+            state=session.project_state,
+            preferences=effective_preferences,
+            user_intent=user_intent,
+            max_revision_rounds=max_revision_rounds,
+        )
+        logger.info(
+            "futures verified:done session=%s visible=%s",
+            session.session_id,
+            len(futures.selected_futures),
+        )
+
     return store.save(
         session.model_copy(update={"stage": "futures_ready", "futures": futures})
     )
