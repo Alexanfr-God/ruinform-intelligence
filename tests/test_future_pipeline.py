@@ -9,7 +9,11 @@ from ruinform_intelligence.future_models import (
     MaterialUse,
     RevisionRecord,
 )
-from ruinform_intelligence.future_pipeline import rank_score, select_top_futures
+from ruinform_intelligence.future_pipeline import (
+    prioritize_revision_candidates,
+    rank_score,
+    select_top_futures,
+)
 from ruinform_intelligence.models import MaterialItem, ProjectState
 
 
@@ -88,6 +92,30 @@ def test_rank_score_respects_user_priorities() -> None:
     )
 
     assert rank_score(review, originality_first) > rank_score(review, usefulness_first)
+
+
+def test_revision_queue_prioritizes_strongest_revisable_candidates() -> None:
+    pool = CandidatePool(
+        candidates=[
+            _candidate("candidate_01", "material_1"),
+            _candidate("candidate_02", "material_1"),
+            _candidate("candidate_03", "material_1"),
+        ]
+    )
+    reviews = {
+        "candidate_01": _review("candidate_01", status="revise", originality=60),
+        "candidate_02": _review("candidate_02", status="revise", originality=95),
+        "candidate_03": _review("candidate_03", status="pass", originality=100),
+    }
+
+    queued = prioritize_revision_candidates(
+        pool=pool,
+        reviews_by_id=reviews,
+        preferences=FuturePreferences(originality=3, usefulness=0, artistic_impact=0, ease=0, value=0),
+        limit=1,
+    )
+
+    assert [candidate.candidate_id for candidate in queued] == ["candidate_02"]
 
 
 def test_selection_hides_non_passing_candidates() -> None:
