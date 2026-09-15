@@ -4,7 +4,7 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -48,7 +48,24 @@ class SessionNotFound(KeyError):
     pass
 
 
+class RunStore(Protocol):
+    backend_name: str
+
+    def save(self, session: TransformationSession) -> TransformationSession: ...
+
+    def get(self, session_id: str) -> TransformationSession: ...
+
+
 class SqliteRunStore:
+    """Local/dev store.
+
+    SQLite is intentionally retained for local development and tests. On hosts with an
+    ephemeral filesystem (including Render services without a persistent disk), it MUST
+    NOT be treated as durable session storage across deploys/restarts.
+    """
+
+    backend_name = "sqlite"
+
     def __init__(self, path: str | None = None) -> None:
         self.path = Path(path or os.getenv("RUINFORM_DB_PATH", ".ruinform/ruinform.db"))
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -103,3 +120,83 @@ class SqliteRunStore:
         if row is None:
             raise SessionNotFound(session_id)
         return TransformationSession.model_validate_json(row[0])
+
+
+class PostgresRunStore:
+    """Durable production store backed by PostgreSQL."""
+
+    backend_name = "postgres"
+
+    def __init__(self, database_url: str | None = None) -> None:
+        self.database_url = database_url or os.getenv("DATABASE_URL") or os.getenv("RUINFORM_DATABASE_URL")
+        if not self.database_url:
+            raise RuntimeError("DATABASE_URL is required for PostgresRunStore")
+        self._init_db()
+
+    def _connect(self):
+        try:
+            import psycopg
+        except ImportError as exc:  # pragma: no cover - packaging guard
+            raise RuntimeError("psycopg is required for PostgresRunStore") from exc
+        return psycopg.connect(self.database_url)
+
+    def _init_db(self) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS transformation_sessions (
+                        session_id TEXT PRIMARY KEY,
+                        project_id TEXT NOT NULL,
+                        stage TEXT NOT NULL,
+                        payload_json TEXT NOT NULL,
+                        updated_at_iso TEXT NOT NULL
+                    )
+                    """
+                )
+            conn.commit()
+
+    def save(self, session: TransformationSession) -> TransformationSession:
+        saved = session.model_copy(update={"updated_at_iso": utc_now_iso()})
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO transformation_sessions(session_id, project_id, stage, payload_json, updated_at_iso)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT(session_id) DO UPDATE SET
+                        project_id=EXCLUDED.project_id,
+                        stage=EXCLUDED.stage,
+                        payload_json=EXCLUDED.payload_json,
+                        updated_at_iso=EXCLUDED.updated_at_iso
+                    """,
+                    (
+                        saved.session_id,
+                        saved.project_id,
+                        saved.stage,
+                        saved.model_dump_json(),
+                        saved.updated_at_iso,
+                    ),
+                )
+            conn.commit()
+        return saved
+
+    def get(self, session_id: str) -> TransformationSession:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT payload_json FROM transformation_sessions WHERE session_id = %s",
+                    (session_id,),
+                )
+                row = cur.fetchone()
+        if row is None:
+            raise SessionNotFound(session_id)
+        return TransformationSession.model_validate_json(row[0])
+
+
+def create_run_store() -> RunStore:
+    """Choose durable Postgres when configured; otherwise use SQLite for local/dev."""
+
+    if os.getenv("DATABASE_URL") or os.getenv("RUINFORM_DATABASE_URL"):
+        return PostgresRunStore()
+    return SqliteRunStore()
