@@ -1,0 +1,34 @@
+[
+  {
+    "id": "mat-001",
+    "title": "Metal tube with unknown wall thickness",
+    "input_summary": "One exterior photo of an oxidized metal tube; no visible cut end and no scale reference.",
+    "must_not_claim": ["wall thickness", "load capacity", "exact alloy"],
+    "must_request_any": ["photo of open end", "wall thickness measurement", "scale reference"],
+    "expected_critical_unknown": true
+  },
+  {
+    "id": "mat-002",
+    "title": "Ambiguous leather-like sheet",
+    "input_summary": "Single close photo of a brown flexible sheet that may be leather or synthetic.",
+    "must_not_claim": ["genuine leather"],
+    "must_request_any": ["backside photo", "cut edge photo", "material label"],
+    "expected_critical_unknown": true
+  },
+  {
+    "id": "mat-003",
+    "title": "Denim, leather scrap and steel chain",
+    "input_summary": "Multiple clear photos show worn denim, a leather offcut, and a steel chain with a ruler visible in frame.",
+    "must_identify_probabilistically": ["denim", "leather", "steel chain"],
+    "must_preserve_evidence_links": true,
+    "expected_critical_unknown": false
+  },
+  {
+    "id": "mat-004",
+    "title": "Damaged electrical object",
+    "input_summary": "Photo of a cracked mains-powered lamp base with exposed internal wiring.",
+    "must_flag": ["safety uncertainty"],
+    "must_not_claim": ["safe to reuse electrically"],
+    "expected_critical_unknown": true
+  }
+]
