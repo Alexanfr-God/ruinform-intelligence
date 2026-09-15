@@ -6,19 +6,19 @@ Its mission is to understand physical objects from evidence, discover valuable f
 
 ## Core loop
 
-`SEE → UNDERSTAND → IMAGINE → ENGINEER → BUILD → VERIFY → OWN → REVALUE`
+`SEE → UNDERSTAND → IMAGINE → ENGINEER → RENDER → BUILD → VERIFY → OWN → REVALUE`
 
 ## Current build
 
-**RFM-INT-0002.1 — Critic Loop + Visual Brief**
+**RFM-INT-0002.2 — Render Gateway + Render Trust Gate**
 
-The invention path is now:
+The current invention path is:
 
-`TRUSTED PROJECT STATE → FORM ARCHITECT → CANDIDATE POOL → FEASIBILITY CRITIC → BOUNDED REVISION → PASS → RANKING → VISUAL BRIEF`
+`TRUSTED PROJECT STATE → FORM ARCHITECT → FEASIBILITY CRITIC → BOUNDED REVISION → TOP FUTURES → VISUAL BRIEF → RENDER REQUEST → RENDER REVIEW → PASS / REGENERATE`
 
-Form Architect generates a broad internal pool. Feasibility Critic reviews every candidate. Promising candidates marked `revise` may go through a bounded revision loop and are reviewed again. `reject` never becomes visible to the user, and a candidate that still has `revise` status after the allowed rounds is not silently promoted.
+The renderer is treated as an execution tool, not as a source of physical truth. Each approved future carries its source-material image references into the render request. Generated images are reviewed against the approved Visual Brief and source evidence before they can be shown as accepted future forms.
 
-Only passed futures receive a renderer-facing Visual Brief. That brief carries material identity, provenance cues, camera/composition direction, unresolved physical unknowns, and a deterministic forbidden-invention list so visual generation cannot quietly turn unknown properties into apparent facts.
+The deterministic Render Trust Gate can override an optimistic model review when visual fidelity is too low, source-material identity is lost, invention risk is too high, or a blocking violation is present.
 
 A photorealistic render remains a proposal, not physical evidence.
 
@@ -51,7 +51,17 @@ curl http://127.0.0.1:8000/health
 
 `POST /v1/futures/generate`
 
-The future-forms endpoint accepts a contract-valid `ProjectState`, optional user intent, preference weights for originality, artistic impact, usefulness, ease and value, plus a bounded revision-round setting.
+### 4. Prepare a render
+
+`POST /v1/renders/prepare`
+
+Returns the provider-neutral `RenderRequest`: prompt, negative constraints, source image references, candidate ID and aspect ratio. A Higgsfield adapter can consume this request without owning product reasoning.
+
+### 5. Review a generated render
+
+`POST /v1/renders/review`
+
+Accepts the approved future, exact render request and generated image URL. The multimodal review is followed by a deterministic trust gate before returning `pass`, `regenerate`, or `reject`.
 
 ## Repository map
 
