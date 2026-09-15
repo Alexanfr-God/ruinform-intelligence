@@ -57,14 +57,24 @@ class RunStore(Protocol):
 
 
 class SqliteRunStore:
-    """Local/dev store.
+    """Local/dev store with a production compatibility bridge.
 
-    SQLite is intentionally retained for local development and tests. On hosts with an
-    ephemeral filesystem (including Render services without a persistent disk), it MUST
-    NOT be treated as durable session storage across deploys/restarts.
+    Existing callers historically instantiate ``SqliteRunStore`` directly. To avoid a
+    risky cross-cutting migration, when DATABASE_URL/RUINFORM_DATABASE_URL is configured
+    this constructor transparently returns a ``PostgresRunStore`` instead. Local tests and
+    development without a database URL continue to use SQLite.
+
+    SQLite must never be treated as durable storage on hosts with an ephemeral filesystem.
     """
 
     backend_name = "sqlite"
+
+    def __new__(cls, path: str | None = None):
+        if cls is SqliteRunStore and (
+            os.getenv("DATABASE_URL") or os.getenv("RUINFORM_DATABASE_URL")
+        ):
+            return PostgresRunStore()
+        return super().__new__(cls)
 
     def __init__(self, path: str | None = None) -> None:
         self.path = Path(path or os.getenv("RUINFORM_DB_PATH", ".ruinform/ruinform.db"))
