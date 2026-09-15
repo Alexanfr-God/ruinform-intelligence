@@ -37,10 +37,24 @@ def _validate_review_batch(*, pool: CandidatePool, batch: ReviewBatch) -> None:
         raise FeasibilityError("Review batch does not match candidate pool: " + " ".join(details))
 
 
+def _mode_policy(concept_mode: bool) -> str:
+    if not concept_mode:
+        return "VERIFIED PATH: score physical feasibility using established evidence and preserve any remaining unknowns."
+    return (
+        "CONCEPT MODE: the user intentionally continued with incomplete evidence. A status of PASS means only "
+        "'acceptable for exploratory concept visualization'; it is NOT approval to build, sell, install, wear, power, "
+        "heat, load, pressurize, or otherwise use the object. Penalize dependence on unknown dimensions/materials. "
+        "Any unresolved physical, electrical, thermal, structural, chemical, or regulatory requirement must be copied "
+        "into unresolved_dependencies. Reject concepts that would be unsafe to even visualize without encouraging a "
+        "dangerous action; prefer low-risk/reversible concepts."
+    )
+
+
 async def review_candidate_pool(
     *,
     state: ProjectState,
     pool: CandidatePool,
+    concept_mode: bool = False,
     client: AsyncOpenAI | None = None,
     model: str | None = None,
 ) -> ReviewBatch:
@@ -58,7 +72,8 @@ async def review_candidate_pool(
                     {
                         "type": "input_text",
                         "text": (
-                            "Review every future form against the trusted project state.\n\n"
+                            "Review every future form against the physical project state.\n\n"
+                            f"MODE POLICY: {_mode_policy(concept_mode)}\n\n"
                             f"Project state: {state.model_dump_json()}\n\n"
                             f"Candidate pool: {pool.model_dump_json()}"
                         ),
