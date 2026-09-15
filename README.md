@@ -10,15 +10,15 @@ Its mission is to understand physical objects from evidence, discover valuable f
 
 ## Current build
 
-**RFM-INT-0002.2 — Render Gateway + Render Trust Gate**
+**RFM-INT-0002.3 — First Live Transformation**
 
-The current invention path is:
+The product path is now persistent and callable:
 
-`TRUSTED PROJECT STATE → FORM ARCHITECT → FEASIBILITY CRITIC → BOUNDED REVISION → TOP FUTURES → VISUAL BRIEF → RENDER REQUEST → RENDER REVIEW → PASS / REGENERATE`
+`SOURCE IMAGES → MATERIAL EYE → EVIDENCE LOOP → FUTURE DISCOVERY → USER CHOICE → HIGGSFIELD RENDER → RENDER TRUST GATE → ACCEPTED FUTURE`
 
-The renderer is treated as an execution tool, not as a source of physical truth. Each approved future carries its source-material image references into the render request. Generated images are reviewed against the approved Visual Brief and source evidence before they can be shown as accepted future forms.
+Transformation sessions preserve `ProjectState`, future candidates, selected candidate, render attempts, critique results, and the accepted image. A session can stop for missing evidence and resume later without pretending that the conversation itself is physical truth.
 
-The deterministic Render Trust Gate can override an optimistic model review when visual fidelity is too low, source-material identity is lost, invention risk is too high, or a blocking violation is present.
+The Higgsfield adapter uses source-image references and an asynchronous generation lifecycle. The renderer remains an execution tool: only feasibility-approved futures can be rendered, and only renders that survive the visual trust gate are accepted.
 
 A photorealistic render remains a proposal, not physical evidence.
 
@@ -31,7 +31,7 @@ pip install -e '.[dev]'
 uvicorn ruinform_intelligence.server:app --reload
 ```
 
-The runtime expects the model API credential to be configured as a server environment secret. Never commit credentials to the repository.
+Runtime credentials belong in server environment secrets. Never commit them to the repository.
 
 Health check:
 
@@ -39,29 +39,30 @@ Health check:
 curl http://127.0.0.1:8000/health
 ```
 
-### 1. Inspect matter
+### Modular endpoints
 
-`POST /v1/material-eye/analyze`
+- `POST /v1/material-eye/analyze`
+- `POST /v1/evidence-loop/continue`
+- `POST /v1/futures/generate`
+- `POST /v1/renders/prepare`
+- `POST /v1/renders/review`
 
-### 2. Continue evidence loop
+### Persistent live transformation endpoints
 
-`POST /v1/evidence-loop/continue`
+- `POST /v1/live-transformations/start`
+- `GET /v1/live-transformations/{session_id}`
+- `POST /v1/live-transformations/{session_id}/evidence`
+- `POST /v1/live-transformations/{session_id}/futures`
+- `POST /v1/live-transformations/{session_id}/render/{candidate_id}`
 
-### 3. Discover future forms
+For the prototype, persistent sessions use SQLite. The storage boundary is intentionally isolated so a production datastore can replace it as the workflow scales.
 
-`POST /v1/futures/generate`
+## Container run
 
-### 4. Prepare a render
-
-`POST /v1/renders/prepare`
-
-Returns the provider-neutral `RenderRequest`: prompt, negative constraints, source image references, candidate ID and aspect ratio. A Higgsfield adapter can consume this request without owning product reasoning.
-
-### 5. Review a generated render
-
-`POST /v1/renders/review`
-
-Accepts the approved future, exact render request and generated image URL. The multimodal review is followed by a deterministic trust gate before returning `pass`, `regenerate`, or `reject`.
+```bash
+docker build -t ruinform-intelligence .
+docker run --rm -p 8000:8000 --env-file .env ruinform-intelligence
+```
 
 ## Repository map
 

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field, HttpUrl
 
+from .access_control import require_api_access
 from .evidence_contract import EvidenceContractReport, validate_state_contract
 from .evidence_gate import can_advance_to_ideation
 from .material_eye import MaterialEyeError, analyze_materials
@@ -13,8 +14,9 @@ from .models import ProjectConstraints, ProjectState
 
 app = FastAPI(
     title="RUINFORM Intelligence",
-    version="0.2.2",
+    version="0.2.3",
     description="Evidence-first intelligence for physical matter.",
+    dependencies=[Depends(require_api_access)],
 )
 
 
@@ -37,7 +39,7 @@ async def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "ruinform-intelligence",
-        "build": "RFM-INT-0002.2",
+        "build": "RFM-INT-0002.3",
     }
 
 
