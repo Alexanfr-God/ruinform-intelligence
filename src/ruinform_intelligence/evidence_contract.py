@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from .models import ClaimKind, ProjectState
+from .models import ClaimKind, MaterialObservation, ProjectState
 
 
 class EvidenceContractIssue(BaseModel):
@@ -23,6 +23,13 @@ class EvidenceContractError(ValueError):
         super().__init__("Evidence contract failed")
 
 
+def _all_observations(state: ProjectState) -> list[MaterialObservation]:
+    observations = list(state.claim_history)
+    for material in state.materials:
+        observations.extend(material.observations)
+    return observations
+
+
 def validate_state_contract(state: ProjectState) -> EvidenceContractReport:
     issues: list[EvidenceContractIssue] = []
 
@@ -39,17 +46,16 @@ def validate_state_contract(state: ProjectState) -> EvidenceContractReport:
         evidence_by_id[item.evidence_id] = item
 
     observations_by_id = {}
-    for material in state.materials:
-        for observation in material.observations:
-            if observation.observation_id in observations_by_id:
-                issues.append(
-                    EvidenceContractIssue(
-                        code="duplicate_observation_id",
-                        message=f"Duplicate observation id: {observation.observation_id}",
-                        observation_id=observation.observation_id,
-                    )
+    for observation in _all_observations(state):
+        if observation.observation_id in observations_by_id:
+            issues.append(
+                EvidenceContractIssue(
+                    code="duplicate_observation_id",
+                    message=f"Duplicate observation id: {observation.observation_id}",
+                    observation_id=observation.observation_id,
                 )
-            observations_by_id[observation.observation_id] = observation
+            )
+        observations_by_id[observation.observation_id] = observation
 
     for material in state.materials:
         for observation in material.observations:
@@ -125,11 +131,15 @@ def validate_state_contract(state: ProjectState) -> EvidenceContractReport:
                         )
                     )
                     continue
-                if (
-                    observation.property_key
-                    and prior.property_key
-                    and observation.property_key != prior.property_key
-                ):
+                if prior.observation_id == observation.observation_id:
+                    issues.append(
+                        EvidenceContractIssue(
+                            code="self_referential_claim_change",
+                            message="An observation cannot cite itself as prior state.",
+                            observation_id=observation.observation_id,
+                        )
+                    )
+                if observation.property_key and prior.property_key and observation.property_key != prior.property_key:
                     issues.append(
                         EvidenceContractIssue(
                             code="prior_property_mismatch",
