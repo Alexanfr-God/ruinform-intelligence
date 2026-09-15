@@ -7,6 +7,7 @@ from ruinform_intelligence.future_models import (
     FeasibilityReview,
     FuturePreferences,
     MaterialUse,
+    RevisionRecord,
 )
 from ruinform_intelligence.future_pipeline import rank_score, select_top_futures
 from ruinform_intelligence.models import MaterialItem, ProjectState
@@ -112,3 +113,28 @@ def test_selection_hides_non_passing_candidates() -> None:
     )
 
     assert [item.candidate.candidate_id for item in selected] == ["candidate_01", "candidate_03"]
+
+
+def test_selection_preserves_revision_lineage() -> None:
+    before = _candidate("candidate_01", "material_1")
+    after = before.model_copy(update={"name": "Future candidate_01 revised"})
+    history = [
+        RevisionRecord(
+            round_index=1,
+            critique_status="revise",
+            requested_changes=["reduce unsupported span"],
+            candidate_before=before,
+            candidate_after=after,
+        )
+    ]
+
+    selected = select_top_futures(
+        pool=CandidatePool(candidates=[after]),
+        reviews_by_id={"candidate_01": _review("candidate_01")},
+        preferences=FuturePreferences(),
+        revision_history_by_id={"candidate_01": history},
+        limit=1,
+    )
+
+    assert selected[0].revision_history[0].candidate_before.name == before.name
+    assert selected[0].revision_history[0].candidate_after.name == after.name
