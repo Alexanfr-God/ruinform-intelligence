@@ -17,6 +17,7 @@ class FutureFormsRequest(BaseModel):
     project_state: ProjectState
     user_intent: str | None = Field(default=None, max_length=4000)
     preferences: FuturePreferences = Field(default_factory=FuturePreferences)
+    max_revision_rounds: int = Field(default=2, ge=0, le=5)
 
 
 @router.post("/generate", response_model=FutureFormsResult)
@@ -32,6 +33,7 @@ async def generate_future_forms(payload: FutureFormsRequest) -> FutureFormsResul
             state=payload.project_state,
             preferences=payload.preferences,
             user_intent=payload.user_intent,
+            max_revision_rounds=payload.max_revision_rounds,
         )
     except FuturePipelineError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
