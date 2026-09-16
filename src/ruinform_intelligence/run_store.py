@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from .build_models import BuildPlan
 from .future_models import FutureFormsResult
 from .models import ProjectState
 from .render_models import RenderResult
@@ -20,6 +21,7 @@ SessionStage = Literal[
     "futures_ready",
     "rendering",
     "completed",
+    "build_plan_ready",
     "failed",
 ]
 ReasoningMode = Literal["verified", "concept"]
@@ -40,6 +42,7 @@ class TransformationSession(BaseModel):
     futures: FutureFormsResult | None = None
     selected_candidate_id: str | None = None
     render_result: RenderResult | None = None
+    build_plan: BuildPlan | None = None
     created_at_iso: str = Field(default_factory=utc_now_iso)
     updated_at_iso: str = Field(default_factory=utc_now_iso)
 
@@ -217,7 +220,6 @@ class PostgresRunStore:
 
 def create_run_store() -> RunStore:
     """Choose durable Postgres when configured; otherwise use SQLite for local/dev."""
-
     if os.getenv("DATABASE_URL") or os.getenv("RUINFORM_DATABASE_URL"):
         return PostgresRunStore()
     return SqliteRunStore()
