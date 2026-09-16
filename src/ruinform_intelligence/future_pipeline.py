@@ -89,7 +89,36 @@ def select_top_futures(
             )
         )
     reviewed.sort(key=lambda item: item.rank_score, reverse=True)
-    return reviewed[:limit]
+
+    if limit <= 1 or len(reviewed) <= 1:
+        return reviewed[:limit]
+
+    # RUINFORM should not show the user three nearly identical directions just because
+    # they scored a few points apart. First take the strongest candidate, then prefer
+    # strong candidates from new categories, and finally fill any remaining slots by rank.
+    selected: list[ReviewedFuture] = []
+    selected_ids: set[str] = set()
+    used_categories: set[str] = set()
+
+    for item in reviewed:
+        if len(selected) >= limit:
+            break
+        category = item.candidate.category
+        if not selected or category not in used_categories:
+            selected.append(item)
+            selected_ids.add(item.candidate.candidate_id)
+            used_categories.add(category)
+
+    if len(selected) < limit:
+        for item in reviewed:
+            if len(selected) >= limit:
+                break
+            if item.candidate.candidate_id in selected_ids:
+                continue
+            selected.append(item)
+            selected_ids.add(item.candidate.candidate_id)
+
+    return selected
 
 
 async def _review_single_candidate(
