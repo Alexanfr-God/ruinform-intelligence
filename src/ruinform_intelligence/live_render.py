@@ -21,6 +21,9 @@ async def render_session_candidate(
     aspect_ratio: str = "4:5",
     max_attempts: int = 3,
 ) -> TransformationSession:
+    if isinstance(provider, tuple):
+        provider = provider[0]
+
     if session.futures is None:
         raise ValueError("Generate futures before rendering")
     future = next(
