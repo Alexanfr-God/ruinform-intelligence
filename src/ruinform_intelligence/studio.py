@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import html
 import os
 import secrets
+import time
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Form, HTTPException, status
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from .build_master import BuildMasterError, generate_build_plan
@@ -18,24 +22,123 @@ from .live_render import render_session_candidate
 
 
 router = APIRouter(tags=["studio"])
-security = HTTPBasic()
+security = HTTPBasic(auto_error=False)
 _store: SqliteRunStore | None = None
+_STUDIO_COOKIE = "ruinform_studio_session"
+_STUDIO_COOKIE_TTL = 7 * 24 * 60 * 60
 
 
-def _require_access(credentials: HTTPBasicCredentials = Depends(security)) -> None:
+def _auth_config() -> tuple[str, str]:
     expected_user = os.getenv("RUINFORM_LAB_USER", "maker")
     expected_password = os.getenv("RUINFORM_LAB_PASSWORD")
     if not expected_password:
         raise HTTPException(status_code=503, detail="RUINFORM_LAB_PASSWORD is not configured")
-    if not (
+    return expected_user, expected_password
+
+
+def _cookie_token(username: str, expires: int, password: str) -> str:
+    payload = f"{username}:{expires}"
+    signature = hmac.new(password.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload}:{signature}"
+
+
+def _cookie_is_valid(token: str | None, *, username: str, password: str) -> bool:
+    if not token:
+        return False
+    try:
+        token_user, expires_raw, signature = token.split(":", 2)
+        expires = int(expires_raw)
+    except (TypeError, ValueError):
+        return False
+    if token_user != username or expires < int(time.time()):
+        return False
+    expected = _cookie_token(token_user, expires, password).rsplit(":", 1)[1]
+    return secrets.compare_digest(signature, expected)
+
+
+def _safe_next(value: str | None) -> str:
+    if value and value.startswith("/studio/") and not value.startswith("//"):
+        return value
+    return "/lab"
+
+
+def _require_access(
+    request: Request,
+    credentials: HTTPBasicCredentials | None = Depends(security),
+) -> None:
+    expected_user, expected_password = _auth_config()
+
+    if _cookie_is_valid(
+        request.cookies.get(_STUDIO_COOKIE),
+        username=expected_user,
+        password=expected_password,
+    ):
+        return
+
+    if credentials and (
         secrets.compare_digest(credentials.username, expected_user)
         and secrets.compare_digest(credentials.password, expected_password)
     ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid studio credentials",
-            headers={"WWW-Authenticate": "Basic"},
-        )
+        return
+
+    next_path = quote(request.url.path, safe="/")
+    raise HTTPException(
+        status_code=status.HTTP_303_SEE_OTHER,
+        detail="Studio sign-in required",
+        headers={"Location": f"/studio-login?next={next_path}"},
+    )
+
+
+def _login_page(next_path: str, *, error: str | None = None) -> str:
+    error_html = f"<p style='color:#d5ad74'>{html.escape(error)}</p>" if error else ""
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RUINFORM STUDIO / SIGN IN</title>
+<style>
+:root{{color-scheme:dark}}*{{box-sizing:border-box}}body{{margin:0;background:#080807;color:#eee8dd;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}}main{{max-width:620px;margin:0 auto;padding:72px 22px}}h1{{font-size:clamp(42px,9vw,86px);line-height:.9;letter-spacing:-.06em;margin:0 0 24px}}p{{line-height:1.55;color:#a69e92}}.k{{font-size:12px;letter-spacing:.2em;color:#8f887b;margin-bottom:16px}}label{{display:block;margin:18px 0 8px;color:#b9b1a4}}input,button{{width:100%;background:#12110f;color:#eee8dd;border:1px solid #3d3932;padding:14px;font:inherit}}button{{cursor:pointer;background:#e8e0d1;color:#111;border:0;font-weight:700;margin-top:20px}}
+</style></head><body><main>
+<div class='k'>RUINFORM / PRIVATE STUDIO</div><h1>SIGN IN.</h1>
+<p>One sign-in keeps this browser connected to the private Studio for seven days. Your OpenAI, Higgsfield and database secrets remain server-side.</p>
+{error_html}
+<form method='post' action='/studio-login'>
+<input type='hidden' name='next' value='{html.escape(_safe_next(next_path), quote=True)}'/>
+<label>LOGIN</label><input name='username' autocomplete='username' required/>
+<label>PASSWORD</label><input type='password' name='password' autocomplete='current-password' required/>
+<button type='submit'>ENTER RUINFORM STUDIO</button>
+</form></main></body></html>"""
+
+
+@router.get('/studio-login', response_class=HTMLResponse)
+async def studio_login(next: str = '/lab') -> str:
+    return _login_page(_safe_next(next))
+
+
+@router.post('/studio-login', response_class=HTMLResponse)
+async def studio_login_submit(
+    username: str = Form(...),
+    password: str = Form(...),
+    next: str = Form('/lab'),
+):
+    expected_user, expected_password = _auth_config()
+    if not (
+        secrets.compare_digest(username, expected_user)
+        and secrets.compare_digest(password, expected_password)
+    ):
+        return HTMLResponse(_login_page(_safe_next(next), error="Invalid Studio login or password."), status_code=401)
+
+    destination = _safe_next(next)
+    expires = int(time.time()) + _STUDIO_COOKIE_TTL
+    response = RedirectResponse(url=destination, status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie(
+        _STUDIO_COOKIE,
+        _cookie_token(expected_user, expires, expected_password),
+        max_age=_STUDIO_COOKIE_TTL,
+        httponly=True,
+        secure=True,
+        samesite='lax',
+        path='/',
+    )
+    return response
 
 
 def _studio_store() -> SqliteRunStore:
