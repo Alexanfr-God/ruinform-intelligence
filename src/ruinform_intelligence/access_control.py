@@ -7,12 +7,17 @@ from fastapi import HTTPException, Request
 
 
 async def require_api_access(request: Request) -> None:
+    path = request.url.path
     if (
-        request.url.path == "/health"
-        or request.url.path.startswith("/lab")
-        or request.url.path.startswith("/public/evidence/")
+        path == "/health"
+        or path.startswith("/lab")
+        or path.startswith("/public/evidence/")
+        or path == "/studio-login"
+        or path.startswith("/studio/")
+        or path == "/studio"
     ):
         return
+
     expected = os.getenv("RUINFORM_API_TOKEN")
     if not expected:
         raise HTTPException(status_code=503, detail="RUINFORM_API_TOKEN is not configured")
