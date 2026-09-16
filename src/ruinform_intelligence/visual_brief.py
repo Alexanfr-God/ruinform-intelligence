@@ -51,8 +51,8 @@ def _enforce_renderer_boundaries(
     unknowns = list(dict.fromkeys([*brief.unknowns_to_keep_ambiguous, *unresolved]))
 
     deterministic_forbidden = [
-        "Do not invent exact dimensions that are not established in ProjectState.",
-        "Do not invent material grade, composition, strength, or load capacity.",
+        "Do not invent measured dimensions that are not established in ProjectState.",
+        "Do not invent material grade, composition, strength, or load capacity as verified facts.",
         "Do not invent hidden fasteners, supports, or internal structure not declared by the candidate.",
         "Do not add source materials or purchased parts that are absent from the approved candidate.",
         "Do not depict the render as engineering proof or certification.",
@@ -60,12 +60,14 @@ def _enforce_renderer_boundaries(
     if concept_mode:
         deterministic_forbidden.extend(
             [
-                "This is Concept Mode: keep proportions approximate where dimensions are unknown.",
-                "Do not visually imply tested safety, structural adequacy, electrical compliance, heat resistance, or manufacturability.",
+                "This is Concept Mode: visually plausible approximate proportions are allowed where exact dimensions are unknown, but they must not imply measurement accuracy.",
+                "Do not visually imply tested safety, structural adequacy, electrical compliance, heat resistance, pressure resistance, or manufacturability.",
+                "Prefer visible, simple, physically understandable joins over seamless or magical transformations.",
             ]
         )
-    for key in unresolved:
-        deterministic_forbidden.append(f"Do not visually resolve unknown property: {key}.")
+    else:
+        for key in unresolved:
+            deterministic_forbidden.append(f"Do not visually resolve unknown property as a verified fact: {key}.")
 
     forbidden = list(dict.fromkeys([*brief.forbidden_inventions, *deterministic_forbidden]))
     return brief.model_copy(
@@ -91,8 +93,7 @@ async def generate_visual_brief(
     model = model or os.getenv("RUINFORM_VISUAL_BRIEF_MODEL", DEFAULT_MODEL)
     client = client or AsyncOpenAI()
     mode_policy = (
-        "CONCEPT MODE: create an exploratory visualization only. Preserve all unknown dimensions/properties as ambiguous; "
-        "do not turn assumptions into visible engineering facts."
+        "CONCEPT MODE: create an exploratory visualization. Ordinary unknown dimensions may use visually plausible approximate proportions and scale-to-fit construction logic, but never present them as measured. Preserve high-consequence safety unknowns and do not depict certification. Make the physical transformation and simple joins legible."
         if concept_mode
         else "VERIFIED PATH: use the established project state and preserve remaining unknowns."
     )
