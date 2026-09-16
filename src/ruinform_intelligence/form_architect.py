@@ -88,12 +88,16 @@ def _concept_mode_context(state: ProjectState) -> str:
             )
     return (
         "CONCEPT MODE IS ACTIVE. The user explicitly chose exploratory ideation before all physical facts were verified.\n"
-        "Treat every unresolved property as UNKNOWN, never as a fact. You may use conservative visual/design assumptions "
-        "only to propose concepts, and every such assumption must remain visible in unresolved_dependencies. "
-        "Do not claim engineering approval, structural safety, electrical safety, heat/flame safety, pressure safety, "
-        "food-contact safety, regulatory compliance, or manufacturability. Avoid concepts whose core value depends on "
-        "an unverified high-consequence property. Prefer reversible, non-load-bearing, low-energy, decorative or easily "
-        "verifiable transformations until evidence improves.\n\n"
+        "Treat unresolved properties as UNKNOWN and never report assumptions as measured facts. However, do not let missing "
+        "ordinary dimensions collapse ideation into passive arrangements. For low-consequence unknown dimensions, use "
+        "scale-to-fit construction logic such as trim-to-fit, wrap-to-fit, fold-to-fit, position-to-fit, or adjustable joins. "
+        "Record the uncertainty in unresolved_dependencies. You may make visually conservative approximate assumptions for "
+        "concept rendering as long as they are explicitly unverified.\n"
+        "Prioritize real transformations into recognizable objects: quick DIY objects, functional art, lighting, interior "
+        "objects, small utility objects, wearables, sculptures, and installations with genuine physical conversion. Mere "
+        "placement/alignment of intact objects is a weak default and should be used only when the installation thesis is exceptional.\n"
+        "Never rely on unverified high-consequence facts such as electrical rating, heat/flame resistance, pressure resistance, "
+        "load capacity, structural strength, or chemical safety. Keep those as blockers before actual fabrication/use.\n\n"
         "UNRESOLVED PROPERTIES:\n" + ("\n".join(unknowns) if unknowns else "- none")
     )
 
