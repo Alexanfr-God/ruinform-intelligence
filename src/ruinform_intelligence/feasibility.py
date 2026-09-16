@@ -42,12 +42,14 @@ def _mode_policy(concept_mode: bool) -> str:
     if not concept_mode:
         return "VERIFIED PATH: score physical feasibility using established evidence and preserve any remaining unknowns."
     return (
-        "CONCEPT MODE: the user intentionally continued with incomplete evidence. A status of PASS means only "
-        "'acceptable for exploratory concept visualization'; it is NOT approval to build, sell, install, wear, power, "
-        "heat, load, pressurize, or otherwise use the object. Penalize dependence on unknown dimensions/materials. "
-        "Any unresolved physical, electrical, thermal, structural, chemical, or regulatory requirement must be copied "
-        "into unresolved_dependencies. Reject concepts that would be unsafe to even visualize without encouraging a "
-        "dangerous action; prefer low-risk/reversible concepts."
+        "CONCEPT MODE: the user intentionally continued with incomplete evidence. PASS means 'credible direction for "
+        "exploratory visualization', not approval to fabricate or use. Distinguish missing precision from dangerous missing facts. "
+        "Unknown ordinary dimensions may be treated as scale-to-fit variables when the candidate can be trimmed, wrapped, folded, "
+        "positioned, nested, or adjusted during making; keep them in unresolved_dependencies but do not automatically punish the "
+        "concept into rejection. Reward simple, physically legible transformations and quick prototypes made with common hand tools "
+        "and cheap declared consumables. Penalize passive arrangements that avoid actual transformation unless the user requested an "
+        "installation. High-consequence unknowns such as electrical rating, heat/flame behavior, pressure, load capacity, structural "
+        "strength, or chemical safety remain real blockers before fabrication/use and must remain explicit."
     )
 
 
