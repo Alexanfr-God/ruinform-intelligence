@@ -14,7 +14,7 @@ from .models import ProjectConstraints, ProjectState
 
 app = FastAPI(
     title="RUINFORM Intelligence",
-    version="0.2.6.1",
+    version="0.3.0",
     description="Evidence-first intelligence for physical matter.",
     dependencies=[Depends(require_api_access)],
 )
@@ -40,7 +40,7 @@ async def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "ruinform-intelligence",
-        "build": "RFM-INT-0002.6.1",
+        "build": "RFM-INT-0003",
         "storage": storage,
     }
 
