@@ -1,0 +1,11 @@
+{
+  "card_id":"003_wastelight",
+  "binary_ingest_status":"pending_repository_or_bucket_ingest",
+  "required_roles":["source_parts","principle_assembly","clean_product","hero_world"],
+  "assets":[
+    {"role":"source_parts","target_path":"assets/01_source_parts.jpg","source_document":"concept 3 EASY level.pdf","source_page":3,"crop_note":"Two-parts panel: corrugated hose + light strip/controller.","status":"source_mapped"},
+    {"role":"principle_assembly","target_path":"assets/02_principle_assembly.jpg","source_document":"concept 3 EASY level.pdf","source_page":3,"crop_note":"Insert-light and shape-the-form panels.","status":"source_mapped"},
+    {"role":"clean_product","target_path":"assets/03_clean_product.jpg","source_document":"concept 3 EASY level.pdf","source_page":3,"crop_note":"Final-product panel; object-first but not a fully neutral studio shot.","status":"source_mapped"},
+    {"role":"hero_world","target_path":"assets/04_hero_world.jpg","source_document":"concept 3 EASY level.pdf","source_page":4,"crop_note":"Cinematic RUINFORM world shot.","status":"source_mapped"}
+  ]
+}
