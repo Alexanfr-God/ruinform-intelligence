@@ -26,7 +26,9 @@ class RenderRequest(StrictModel):
 
 class ProviderRender(StrictModel):
     provider: str
-    image_url: HttpUrl
+    # External providers may return HTTPS URLs; GPT Image returns base64 image data.
+    # Keep the renderer contract vendor-neutral by allowing either representation.
+    image_url: str
     provider_job_id: str | None
     provider_metadata: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
 
@@ -59,6 +61,7 @@ class RenderAttempt(BaseModel):
 class RenderResult(BaseModel):
     candidate_id: str
     status: Literal["pass", "failed"]
-    accepted_image_url: HttpUrl | None = None
+    # Can be an HTTPS URL or a data:image/... URL from GPT Image.
+    accepted_image_url: str | None = None
     attempts: list[RenderAttempt] = Field(default_factory=list)
     failure_reason: str | None = None
