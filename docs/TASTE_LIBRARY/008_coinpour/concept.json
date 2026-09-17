@@ -1,0 +1,46 @@
+{
+  "id": "008_coinpour",
+  "title": "COINPOUR / FROZEN FLOW ILLUSION",
+  "status": "curated-v0",
+  "primary": "OBJECT / FORM",
+  "secondary": "PHYSICS / ILLUSION",
+  "tertiary": "MATERIAL / NARRATIVE",
+  "difficulty": "EASY-MEDIUM",
+  "operator": "freeze_the_action",
+  "operator_label": "Freeze the action",
+  "core_formula": "familiar objects -> concealed support -> freeze a familiar action -> hide engineering in the visual story -> impossible-looking collectible",
+  "core_lesson": "FREEZE THE ACTION.",
+  "secondary_lesson": "HIDE STRUCTURE INSIDE THE STORY.",
+  "summary": "A cup, saucer, bent fork and real coins form a frozen pouring illusion where concealed support disappears inside the visual story.",
+  "learn": [
+    "Ask what action the object normally performs.",
+    "Explore whether that action can be frozen into a physical object.",
+    "Static objects can feel mid-action when the critical moment is captured.",
+    "Use story elements to hide the engineering.",
+    "Many small objects can become one large gesture.",
+    "Space itself can become part of the object.",
+    "Ordinary materials can create premium visual impact through spatial organization."
+  ],
+  "avoid": [
+    "cups as a default answer",
+    "coins as the only valid flowing material",
+    "saucers, forks or gold-trimmed ceramics as fixed ingredients",
+    "exactly vertical cascades",
+    "floating tableware as a repetitive trope",
+    "support that remains too visually obvious"
+  ],
+  "materials": ["ceramic teacup", "saucer", "bent fork", "real coins", "strong adhesive or epoxy"],
+  "emotion_tags": ["surprising", "clever", "elegant", "playful", "collectible"],
+  "failure_modes": [
+    "the fork/support is too visible and the illusion collapses immediately",
+    "the action does not read clearly as pouring",
+    "the coin stream feels like random clutter instead of one gesture",
+    "the gap between cup and saucer is too small to create suspension",
+    "the piece feels like a craft trick rather than a refined collectible object",
+    "too much material or too many coins flatten the silhouette and weaken the illusion"
+  ],
+  "tags": ["frozen-action", "concealed-support", "illusion", "mid-action", "ordinary-objects", "collectible", "spatial-gesture", "hidden-structure"],
+  "asset_status": "source_mapped_binary_ingest_pending",
+  "asset_manifest": "assets/manifest.json",
+  "source": "user-provided concept text + 3 images for CONCEPT 08"
+}
