@@ -1,0 +1,27 @@
+{
+  "id": "NNN_slug",
+  "title": "CONCEPT TITLE",
+  "status": "draft",
+  "primary": "OBJECT / FORM",
+  "secondary": "",
+  "tertiary": "",
+  "difficulty": "",
+  "operator": "operator_key",
+  "operator_label": "Operator label",
+  "core_formula": "",
+  "core_lesson": "",
+  "summary": "",
+  "learn": [],
+  "avoid": [],
+  "materials": [],
+  "tags": [],
+  "asset_status": "source_mapped_binary_ingest_pending",
+  "asset_manifest": "assets/manifest.json",
+  "visual_bundle": [
+    {"role":"source_parts","path":"assets/01_source_parts.jpg","note":""},
+    {"role":"principle_assembly","path":"assets/02_principle_assembly.jpg","note":""},
+    {"role":"clean_product","path":"assets/03_clean_product.jpg","note":""},
+    {"role":"hero_world","path":"assets/04_hero_world.jpg","note":""}
+  ],
+  "source": ""
+}
