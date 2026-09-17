@@ -10,6 +10,7 @@ from .future_models import CandidateForm, FeasibilityReview, FutureFormsResult, 
 from .models import ProjectState
 from .prompt_loader import load_prompt_file
 from .reasoning_state import compact_state_json
+from .taste_library import TasteLibraryError, load_design_brain_runtime_context
 
 
 DEFAULT_MODEL = "gpt-5.6"
@@ -39,12 +40,22 @@ class PreviewBatch(_StrictModel):
 
 def _instructions(mode: str) -> str:
     base = load_prompt_file("design_brain.md")
+    try:
+        knowledge = load_design_brain_runtime_context()
+    except TasteLibraryError as exc:
+        raise ConceptPreviewError(
+            "Design Brain knowledge pack could not be loaded: " + str(exc)
+        ) from exc
+
     return (
         base
+        + "\n\n"
+        + knowledge
         + "\n\nPREVIEW stage: this is concept exploration, not engineering approval. "
         + "Detailed feasibility and engineering validation are intentionally deferred until after selection. "
         + "When exact dimensions are unknown, use scale-to-fit, trim-to-fit, mark-from-real-object, or adjustable-fit language rather than inventing measurements. "
-        + "Return exactly four concepts."
+        + "Return exactly four concepts. "
+        + "The four concepts must not be four variations of one Taste Library card. Transfer different operators to the actual source matter."
         + "\n\nCURRENT MODE: "
         + mode.upper()
         + "\nCandidate IDs must be exactly preview_01 through preview_04. "
@@ -72,7 +83,8 @@ async def generate_concept_preview(
                 f"Project state: {compact_state_json(state)}\n\n"
                 f"User intent: {user_intent or 'open exploration'}\n\n"
                 "The product goal is not generic upcycling. Create desirable post-consumer artifacts with visible source provenance, "
-                "strong silhouette, one authored transformation gesture, and believable material logic."
+                "strong silhouette, one authored transformation gesture, and believable material logic. "
+                "Use the Taste Library as a grammar of design moves, never as a catalogue of objects to reproduce."
             ),
         }
     ]
@@ -85,6 +97,11 @@ async def generate_concept_preview(
         image_count += 1
         if image_count >= 6:
             break
+
+    if image_count == 0:
+        raise ConceptPreviewError(
+            "Vision-first Design Brain requires at least one original source photograph"
+        )
 
     response = await client.responses.create(
         model=model,
@@ -131,7 +148,9 @@ async def generate_concept_preview(
             artistic_impact_score=item.artistic_impact_hint,
             usefulness_score=item.usefulness_hint,
             value_potential_score=item.value_hint,
-            reasons=["Vision-first Design Brain preview; detailed feasibility is intentionally deferred until after visual selection."],
+            reasons=[
+                "Vision-first Design Brain preview using original source photographs, RUINFORM Skill/Style rules, and Taste Library grammar; detailed feasibility is intentionally deferred until after visual selection."
+            ],
             required_changes=[],
             unresolved_dependencies=list(candidate.unresolved_dependencies),
         )
