@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from .evidence_media import externalize_state_for_render
+from .render_director import VisualDirectorError, fallback_visual_direction, generate_visual_direction, select_render_mode
 from .render_gateway import render_future
 from .render_models import RenderResult
 from .render_prompt import compile_preview_render_request
@@ -52,19 +53,54 @@ async def render_session_candidate(
     )
 
     if concept_mode:
-        # Visual-first path: one deterministic prompt compilation + one provider call.
-        # We deliberately defer the expensive VisualBrief and strict Render Critic until
-        # the user has decided the visual direction is worth pursuing.
+        render_mode = select_render_mode(future)
+        logger.info(
+            "render director:start session=%s candidate=%s mode=%s",
+            session.session_id,
+            candidate_id,
+            render_mode,
+        )
+        try:
+            direction = await generate_visual_direction(
+                state=render_state,
+                future=future,
+                render_mode=render_mode,
+            )
+            logger.info(
+                "render director:done session=%s candidate=%s mode=%s hero=%s",
+                session.session_id,
+                candidate_id,
+                direction.render_mode,
+                direction.hero_material_id,
+            )
+        except VisualDirectorError as exc:
+            logger.warning(
+                "render director:fallback session=%s candidate=%s reason=%s",
+                session.session_id,
+                candidate_id,
+                exc,
+            )
+            direction = fallback_visual_direction(
+                state=render_state,
+                future=future,
+                render_mode=render_mode,
+            )
+
+        # Visual-first path stays single-pass at the image provider. The added Visual Director
+        # is a lightweight reasoning pass that sees the real source images and resolves hero /
+        # secondary / accent hierarchy before Higgsfield receives the prompt.
         request = compile_preview_render_request(
             state=render_state,
             future=future,
+            direction=direction,
             aspect_ratio=aspect_ratio,
         )
         logger.info(
-            "render preview:start session=%s candidate=%s refs=%s",
+            "render preview:start session=%s candidate=%s refs=%s mode=%s",
             session.session_id,
             candidate_id,
             len(request.references),
+            direction.render_mode,
         )
         render = await provider.render(request)
         logger.info(

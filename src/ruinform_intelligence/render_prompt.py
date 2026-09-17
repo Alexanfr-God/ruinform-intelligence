@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .future_models import ReviewedFuture, VisualBrief
 from .models import ProjectState
+from .render_director import VisualDirection, fallback_visual_direction, select_render_mode
 from .render_models import RenderReference, RenderRequest
 
 
@@ -38,57 +39,111 @@ def compile_preview_render_request(
     *,
     state: ProjectState,
     future: ReviewedFuture,
+    direction: VisualDirection | None = None,
     aspect_ratio: str = "4:5",
 ) -> RenderRequest:
-    """Compile the fast concept-stage render without another LLM round-trip.
-
-    Concept Preview is intentionally visual-first. The selected candidate already contains
-    enough structured design intent for a strong image prompt, so we avoid generating a
-    separate VisualBrief and avoid blocking on a render critic before the user has even
-    decided whether the visual direction is worth pursuing.
-    """
+    """Compile the concept-stage render from candidate + Visual Director hierarchy."""
 
     candidate = future.candidate
+    direction = direction or fallback_visual_direction(
+        state=state,
+        future=future,
+        render_mode=select_render_mode(future),
+    )
     material_by_id = {item.item_id: item for item in state.materials}
-    material_lines: list[str] = []
+
+    role_by_id: dict[str, str] = {}
+    for use in candidate.material_uses:
+        role_by_id[use.material_item_id] = use.role
+
+    def label(material_id: str) -> str:
+        item = material_by_id.get(material_id)
+        return item.display_name if item is not None else material_id
+
+    hero_label = label(direction.hero_material_id)
+    hierarchy_lines = [f"HERO — {hero_label}: dominant visual anchor; {direction.hero_object}."]
+    for material_id in direction.secondary_material_ids:
+        hierarchy_lines.append(
+            f"SECONDARY — {label(material_id)}: support the hero; never dominate or hide it; candidate role: {role_by_id.get(material_id, 'support')}."
+        )
+    for material_id in direction.accent_material_ids:
+        hierarchy_lines.append(
+            f"ACCENT — {label(material_id)}: use sparingly as rhythm/detail/illumination; candidate role: {role_by_id.get(material_id, 'accent')}."
+        )
+
+    source_lines: list[str] = []
     for use in candidate.material_uses:
         material = material_by_id.get(use.material_item_id)
-        label = material.display_name if material is not None else use.material_item_id
-        material_lines.append(
-            f"- {label}: use as {use.role}. Preserve recognizable source color, texture, wear, and identity."
+        material_label = material.display_name if material is not None else use.material_item_id
+        source_lines.append(
+            f"- {material_label} ({use.material_item_id}): use as {use.role}. Preserve recognizable color, texture, wear, major geometry and source identity."
         )
 
     operations = "; ".join(candidate.key_operations) or "Use simple physically legible assembly operations."
     additions = "; ".join(candidate.added_materials) or "No significant added materials."
     unresolved = "; ".join(candidate.unresolved_dependencies) or "Ordinary scale-to-fit assumptions only."
+    keep = "\n".join(f"- {item}" for item in direction.must_keep)
+
+    mode_instruction = {
+        "art_object": (
+            "Present it as gallery-grade contemporary design art: one authored sculptural gesture, strong negative space, "
+            "clean silhouette, restrained drama, no craft clutter."
+        ),
+        "design_product": (
+            "Present it as a premium limited-edition collectible design object: resolved, desirable, visually disciplined, "
+            "design-fair quality, polished product-art photography."
+        ),
+        "realistic_prototype": (
+            "Present it as a beautiful but believable maker prototype: physically legible assembly, minimal additions, "
+            "honest joins, workshop plausibility without looking crude."
+        ),
+    }[direction.render_mode]
 
     prompt = (
-        f"RUINFORM CONCEPT VISUALIZATION — {candidate.name}\n\n"
-        f"Design intent: {candidate.one_line}\n"
-        f"Artistic thesis: {candidate.artistic_thesis}\n"
-        f"Transformation: {candidate.transformation_logic}\n\n"
-        "SOURCE MATTER — preserve these supplied references faithfully:\n"
-        + "\n".join(material_lines)
+        f"RUINFORM VISUAL DIRECTOR / {direction.render_mode.upper()}\n\n"
+        f"OBJECT TYPE: {direction.object_type}\n"
+        f"VISUAL THESIS: {direction.visual_thesis}\n"
+        f"SIGNATURE GESTURE: {direction.signature_gesture}\n"
+        f"SILHOUETTE: {direction.silhouette}\n\n"
+        "VISUAL HIERARCHY — non-negotiable:\n"
+        + "\n".join(hierarchy_lines)
+        + "\n\nSOURCE MATTER — preserve these supplied references faithfully:\n"
+        + "\n".join(source_lines)
         + "\n\n"
-        f"Physical operations: {operations}\n"
-        f"Allowed simple additions: {additions}\n"
-        f"Keep unresolved rather than pretending verified: {unresolved}\n\n"
-        "Create ONE finished, photorealistic object that is immediately understandable from a single hero image. "
-        "The result must look like a real object assembled from the supplied matter, not a collage, not loose items placed next to one another, and not an impossible seamless morph. "
-        "Use visible, believable joins, folds, clips, stitching, wraps, fasteners, bases, or cable routing when relevant. "
-        "Preserve obvious provenance: viewers should still recognize where the source materials came from. "
-        "Aim for a strong contemporary collectible-design / maker-art result while keeping the construction visually plausible. "
-        "Use a clean dark or warm workshop/gallery environment, cinematic product lighting, realistic material texture, and a confident centered composition. "
-        "Do not add labels, captions, logos, plaques, or generated text. "
+        f"CANDIDATE INTENT: {candidate.one_line}\n"
+        f"ARTISTIC THESIS: {candidate.artistic_thesis}\n"
+        f"TRANSFORMATION LOGIC: {candidate.transformation_logic}\n"
+        f"PHYSICAL OPERATIONS: {operations}\n"
+        f"ALLOWED SIMPLE ADDITIONS: {additions}\n"
+        f"KEEP UNRESOLVED RATHER THAN FAKING: {unresolved}\n\n"
+        f"COMPOSITION: {direction.composition}\n"
+        f"CAMERA: {direction.camera}\n"
+        f"LIGHTING: {direction.lighting}\n"
+        f"ENVIRONMENT: {direction.environment}\n\n"
+        f"MODE DIRECTION: {mode_instruction}\n\n"
+        "MUST KEEP:\n"
+        f"{keep}\n\n"
+        "Create ONE finished photorealistic object. The result must be understandable in one second. "
+        "It must feel intentionally designed, not like a list of source objects pasted together. "
+        "Protect the hero object from being swallowed by secondary material. "
+        "Use secondary matter to frame, support, wrap, cradle, punctuate or structurally transform the hero according to the thesis. "
+        "Use accents with restraint. Every visible part must strengthen the same central idea. "
+        "Preserve provenance so the real source matter remains recognizable. "
+        "Use material-specific reflections, folds, seams, thickness, translucency and wear. "
+        "Do not add labels, captions, logos, plaques, generated text or decorative storytelling props. "
         "Exact dimensions may be visually approximated for concept exploration only."
     )
 
     negative_constraints = [
+        *direction.must_avoid,
         "Do not invent additional major source objects that were not supplied.",
-        "Do not hide the source materials behind a completely unrelated shell.",
+        "Do not turn one coherent object into several competing objects or accessories.",
+        "Do not hide the hero material behind a completely unrelated shell or oversized secondary element.",
         "Do not use magical seamless fusion, floating unsupported parts, or impossible geometry.",
+        "Do not add random straps, pouches, bags, devices, cables, stands, handles, mannequins, or hardware unless explicitly required by the visual direction or candidate.",
         "Do not imply tested electrical, heat, load, structural, or safety certification.",
         "Do not generate text, logos, labels, plaques, watermarks, or product copy inside the image.",
+        "Do not use a generic craft-collage aesthetic; make one authored design statement.",
     ]
 
     return RenderRequest(
