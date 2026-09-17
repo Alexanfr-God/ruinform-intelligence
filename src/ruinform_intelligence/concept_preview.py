@@ -41,6 +41,10 @@ def _instructions(mode: str) -> str:
     base = load_prompt_file("design_brain.md")
     return (
         base
+        + "\n\nPREVIEW stage: this is concept exploration, not engineering approval. "
+        + "Detailed feasibility and engineering validation are intentionally deferred until after selection. "
+        + "When exact dimensions are unknown, use scale-to-fit, trim-to-fit, mark-from-real-object, or adjustable-fit language rather than inventing measurements. "
+        + "Return exactly four concepts."
         + "\n\nCURRENT MODE: "
         + mode.upper()
         + "\nCandidate IDs must be exactly preview_01 through preview_04. "
