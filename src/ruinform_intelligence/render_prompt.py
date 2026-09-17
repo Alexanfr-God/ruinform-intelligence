@@ -35,6 +35,37 @@ def _source_references(state: ProjectState, future: ReviewedFuture) -> list[Rend
     return refs
 
 
+def _background_render_instruction(state: ProjectState) -> str:
+    if state.creative_intent.background_mode == "ruinform_world":
+        return (
+            "RUINFORM WORLD / POST-APOCALYPTIC PRESENTATION: Keep the finished art object as at least 70% of the visual attention. "
+            "Place it in a restrained salvage-luxury post-consumer setting: reclaimed workshop, recovery gallery, weathered concrete/metal/wood, "
+            "honest wear, subtle dust and cinematic directional light. The environment must support the object's story, never supply the missing idea. "
+            "No generic cyberpunk RGB, fantasy ruins, random weapons, gas masks, warning signs, mannequins, or excessive apocalypse props."
+        )
+    return (
+        "CLEAN STUDIO PRESENTATION: Use a neutral contemporary studio/gallery background, simple surface, controlled editorial light and minimal visual noise. "
+        "No ruins, workshop clutter, smoke, post-apocalyptic props, fake signage or scenic storytelling. The object alone must earn the WOW."
+    )
+
+
+def _difficulty_render_instruction(state: ProjectState) -> str:
+    mode = state.creative_intent.difficulty_mode
+    if mode == "easy":
+        return (
+            "EASY BUILD LANGUAGE: keep supporting hardware extremely restrained and visually obvious in function. Prefer 0-2 simple additions, household/basic hand-tool logic, "
+            "reversible clamps/ties/simple joins where possible, and no unnecessary specialist mechanism."
+        )
+    if mode == "wild":
+        return (
+            "WILD BUILD LANGUAGE: more radical geometry and specialist fabrication may appear if the selected concept genuinely requires it, but every added component must have a clear structural or functional role. "
+            "Do not let invented hardware overwhelm the supplied objects."
+        )
+    return (
+        "MEDIUM BUILD LANGUAGE: allow workshop-level drilling/cutting/bending/clamping and roughly 0-4 supporting parts when needed. Keep the assembly legible and source-driven rather than turning it into a dense prop."
+    )
+
+
 def compile_preview_render_request(
     *,
     state: ProjectState,
@@ -101,6 +132,11 @@ def compile_preview_render_request(
 
     prompt = (
         f"RUINFORM HIGH-TASTE VISUAL / {direction.render_mode.upper()}\n\n"
+        "PERSISTENT PROJECT CONTROLS:\n"
+        f"CREATIVE DIRECTION: {state.creative_intent.direction or 'open exploration'}\n"
+        f"DIFFICULTY: {state.creative_intent.difficulty_mode.upper()}\n"
+        f"{_difficulty_render_instruction(state)}\n"
+        f"{_background_render_instruction(state)}\n\n"
         "ABSOLUTE PRIORITY:\n"
         f"1. HERO: {direction.hero_object}\n"
         f"2. VISUAL THESIS: {direction.visual_thesis}\n"
@@ -123,7 +159,7 @@ def compile_preview_render_request(
         f"COMPOSITION: {direction.composition}\n"
         f"CAMERA: {direction.camera}\n"
         f"LIGHTING: {direction.lighting}\n"
-        f"ENVIRONMENT: {direction.environment}\n"
+        f"VISUAL DIRECTOR ENVIRONMENT NOTE: {direction.environment}\n"
         f"MODE DIRECTION: {mode_instruction}\n\n"
         f"CANDIDATE INTENT: {candidate.one_line}\n"
         f"PHYSICAL OPERATIONS AVAILABLE: {operations}\n"
@@ -135,6 +171,7 @@ def compile_preview_render_request(
         "Secondary material must enter into a meaningful spatial/formal relationship with the hero, not merely form a base. "
         "Accent light must reveal or intensify the signature gesture, never substitute for the idea. "
         "Use realistic material-specific reflections, translucency, folds, seams, thickness and wear. "
+        "Supporting hardware must be the minimum needed to make the selected idea believable; do not turn simple source matter into an overbuilt movie prop. "
         "Do not add labels, captions, logos, plaques, generated text or decorative storytelling props. "
         "Exact dimensions may be visually approximated for concept exploration only."
     )
@@ -154,6 +191,20 @@ def compile_preview_render_request(
         "Do not generate text, logos, labels, plaques, watermarks, or product copy inside the image.",
         "Do not use a generic craft-collage aesthetic; make one authored design statement.",
     ]
+    if state.creative_intent.background_mode == "clean_studio":
+        negative_constraints.extend(
+            [
+                "Do not add post-apocalyptic scenery, ruins, workshop clutter, smoke, warning signage, survival props, or environmental storytelling.",
+                "Do not let the background make the object seem more interesting than it is.",
+            ]
+        )
+    else:
+        negative_constraints.extend(
+            [
+                "Do not turn RUINFORM World into generic Fallout/cyberpunk cosplay.",
+                "Do not add large unrelated machinery or environmental props that compete with the object.",
+            ]
+        )
 
     return RenderRequest(
         candidate_id=candidate.candidate_id,
