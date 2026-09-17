@@ -1,0 +1,70 @@
+{
+  "id": "010_trilume",
+  "title": "TRILUME / REPETITION BUILDS FORM",
+  "status": "curated-v0",
+  "primary": "OBJECT / FORM",
+  "secondary": "MATERIAL / RHYTHM",
+  "tertiary": "LIGHT / MODULARITY",
+  "difficulty": "MEDIUM",
+  "operator": "build_through_repetition",
+  "operator_label": "Build through repetition",
+  "core_formula": "ordinary repeated part -> regular spacing -> shared structure -> visual rhythm -> collectible object",
+  "core_lesson": "ONE WEAK ELEMENT CAN BECOME STRONG THROUGH REPETITION.",
+  "secondary_lesson": "DON'T DESIGN EVERY PART - DESIGN THE RELATIONSHIP BETWEEN PARTS.",
+  "summary": "Repeated discarded steel cans become a coherent pendant light when aligned, evenly spaced, connected by a shared reclaimed beam and treated as modules rather than individual objects.",
+  "learn": [
+    "Treat repeated found objects as modules before redesigning them individually.",
+    "ONE IS AN OBJECT. MANY CAN BECOME A MATERIAL.",
+    "Repetition needs a rule: size, interval, axis, direction, count and shared structure.",
+    "Design can live in relationships between parts rather than in each part.",
+    "A shared structure can create identity from weak individual components.",
+    "Preserve visible provenance instead of disguising the cans.",
+    "Repetition can increase visual value without erasing origin."
+  ],
+  "avoid": [
+    "exactly three cans as a fixed rule",
+    "matte black as a mandatory finish",
+    "reclaimed wood beam as the only support",
+    "pendant lighting as the only application",
+    "Edison bulbs as default",
+    "horizontal linear composition as the only layout"
+  ],
+  "materials": [
+    "reclaimed wood beam",
+    "discarded steel cans",
+    "lamp holders",
+    "bulbs",
+    "electrical cable",
+    "suspension hardware",
+    "heat-safe finish"
+  ],
+  "emotion_tags": ["ordered", "warm", "architectural", "honest", "collectible"],
+  "failure_modes": [
+    "repetition has no clear spacing or alignment rule and reads as clutter",
+    "the cans are over-disguised and provenance is lost",
+    "the shared support does not visually unify the modules",
+    "the object becomes generic industrial lighting rather than a found-material system",
+    "too many modules weaken the silhouette instead of strengthening rhythm",
+    "electrical implementation is treated as decorative craft rather than real mains-powered hardware"
+  ],
+  "tags": [
+    "repetition",
+    "modularity",
+    "visual-rhythm",
+    "shared-structure",
+    "found-cans",
+    "lighting",
+    "visible-provenance",
+    "system-thinking"
+  ],
+  "electrical_safety_required": true,
+  "safety_notes": [
+    "Use appropriately rated insulated lampholders and heat-safe components.",
+    "Provide secure strain relief and mechanically protected wiring.",
+    "Metal housings require an appropriate grounding or double-insulation strategy according to local electrical standards.",
+    "The Taste Library concept is not a substitute for certified electrical engineering or code compliance."
+  ],
+  "asset_status": "source_mapped_binary_ingest_pending",
+  "asset_manifest": "assets/manifest.json",
+  "source": "user-provided concept text + 3 images for CONCEPT 10"
+}
