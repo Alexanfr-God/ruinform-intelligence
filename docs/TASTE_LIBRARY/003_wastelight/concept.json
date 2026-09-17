@@ -1,0 +1,21 @@
+{
+  "id":"003_wastelight",
+  "title":"WASTELIGHT / SALVAGED FLEX LAMP",
+  "status":"curated-v0",
+  "primary":"OBJECT / FORM",
+  "secondary":"MATERIAL / DETAIL",
+  "tertiary":"WORLD / LIGHT",
+  "difficulty":"EASY",
+  "operator":"recompose_simply",
+  "operator_label":"Recompose simply",
+  "core_formula":"ordinary / discarded components -> minimal intervention -> new luminous form -> collectible object",
+  "core_lesson":"DON'T OVERDESIGN THE PARTS - RECOMPOSE THEM INTO A NEW PRESENCE.",
+  "summary":"A used corrugated hose and simple light strip become a sculptural light object through insertion, hand shaping and internal glow.",
+  "learn":["Strong objects do not always require complex engineering.","Find a good union between two ordinary parts and change their roles.","Let light reveal form from within instead of acting as decoration."],
+  "avoid":["exact loop shape","exact white hose","exact warm LED strip","bunker setting","dusty brown/orange atmosphere as style rule"],
+  "materials":["weathered translucent corrugated hose","warm flexible LED strip","slightly worn controller","internal glow","traces of time"],
+  "tags":["easy","lighting","minimal-intervention","recomposition","flexible-form","salvage-light"],
+  "asset_status":"source_mapped_binary_ingest_pending",
+  "asset_manifest":"assets/manifest.json",
+  "source":"user-provided PDF: concept 3 EASY level.pdf"
+}
