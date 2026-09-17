@@ -1,4 +1,9 @@
-from ruinform_intelligence.concept_preview import PreviewBatch, PreviewCandidate, _instructions
+from ruinform_intelligence.concept_preview import (
+    PreviewBatch,
+    PreviewCandidate,
+    _instructions,
+    _preview_schema,
+)
 from ruinform_intelligence.future_models import CandidateForm, MaterialUse
 
 
@@ -44,3 +49,11 @@ def test_preview_prompt_defers_engineering_until_after_selection() -> None:
     assert "not engineering approval" in prompt
     assert "scale-to-fit" in prompt
     assert "exactly four" in prompt
+
+
+def test_preview_schema_locks_material_ids_to_project_state() -> None:
+    schema = _preview_schema(["real_a", "real_b"])
+    material_id_schema = schema["$defs"]["MaterialUse"]["properties"]["material_item_id"]
+    candidate_id_schema = schema["$defs"]["CandidateForm"]["properties"]["candidate_id"]
+    assert material_id_schema["enum"] == ["real_a", "real_b"]
+    assert candidate_id_schema["enum"] == ["preview_01", "preview_02", "preview_03", "preview_04"]
