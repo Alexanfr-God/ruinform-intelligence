@@ -19,6 +19,9 @@ The Taste Library is useful only if each card contributes a different **design o
 5. **FLOATRELIC - Expose invisible force**  
    Make a physical phenomenon - magnetism, balance, tension, refraction, movement - part of the visible form.
 
+6. **SWINGLIGHT - Turn function into character**  
+   Let functional components become anatomy, emotion, and a readable micro-story.
+
 ## Cross-card rules
 
 - Preserve provenance: the source matter should remain legible.
@@ -27,3 +30,5 @@ The Taste Library is useful only if each card contributes a different **design o
 - Complexity must earn its place.
 - A strong concept should survive a neutral product shot before the hero-world shot is applied.
 - References teach principles, not exact silhouettes.
+- When anthropomorphism is used, it must emerge from function rather than decorative character styling.
+- Emotional readability is useful only when it does not weaken the object's real function or material logic.

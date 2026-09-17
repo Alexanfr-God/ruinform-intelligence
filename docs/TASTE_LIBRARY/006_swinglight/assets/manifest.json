@@ -1,0 +1,12 @@
+{
+  "card_id": "006_swinglight",
+  "asset_status": "source_mapped_binary_ingest_pending",
+  "roles": {
+    "01_source_parts": "Mapped to the user-provided RUINFORM poster image for concept 06 (parts panel).",
+    "02_principle_assembly": "Mapped to the user-provided RUINFORM poster image for concept 06 (build steps / assembly logic).",
+    "03_clean_product": "Mapped to the user-provided neutral product shot image for concept 06.",
+    "04_hero_world": "Mapped to the user-provided gallery/interior hero shot image for concept 06."
+  },
+  "notes": "Binary image ingest into the canonical Taste Library bucket is pending. This manifest defines the required four-role mapping.",
+  "provenance": "User conversation upload, concept 06"
+}

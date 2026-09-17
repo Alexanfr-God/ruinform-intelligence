@@ -1,6 +1,6 @@
 # TASTE LIBRARY ASSET INGEST
 
-The first five cards are structurally complete: `concept.md`, `concept.json`, and an exact source mapping for the four required visual roles.
+The first six cards are structurally complete: `concept.md`, `concept.json`, and an exact source mapping for the four required visual roles.
 
 The four binary image targets per card are:
 

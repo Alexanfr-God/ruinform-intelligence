@@ -1,0 +1,69 @@
+{
+  "id": "006_swinglight",
+  "title": "SWINGLIGHT / LIVING FUNCTION",
+  "status": "curated-v0",
+  "primary": "OBJECT / FORM",
+  "secondary": "NARRATIVE / CHARACTER",
+  "tertiary": "MATERIAL / LIGHT",
+  "difficulty": "EASY-MEDIUM",
+  "operator": "turn_function_into_character",
+  "operator_label": "Turn function into character",
+  "core_formula": "reclaimed materials -> functional anatomy -> recognizable character -> micro-story -> useful collectible object",
+  "core_lesson": "TURN FUNCTION INTO CHARACTER.",
+  "secondary_lesson": "BUILD A MICRO-STORY INTO THE OBJECT.",
+  "summary": "A desk lamp becomes a swing scene where the bulb is the head, the socket is the torso, bent metal becomes the body, reclaimed wood becomes the frame, and the object reads as both a light and a tiny character.",
+  "learn": [
+    "Ask whether a function can be imagined as a creature.",
+    "Anthropomorphism should emerge from function rather than be pasted on top.",
+    "Functional components can become anatomy and narrative.",
+    "Micro-stories can make objects emotionally memorable.",
+    "Natural motion can be stronger than electronics.",
+    "Every material should have a job in the story."
+  ],
+  "avoid": [
+    "generic little human figures",
+    "swing motif as default",
+    "Edison bulb as mandatory bulb choice",
+    "two wood posts and rope as fixed recipe",
+    "exact black metal body",
+    "exact pose",
+    "exact gallery interior"
+  ],
+  "materials": [
+    "reclaimed wood",
+    "rope",
+    "bent steel",
+    "bulb socket",
+    "glass bulb",
+    "visible cable",
+    "metal rod"
+  ],
+  "emotion_tags": [
+    "warm",
+    "playful",
+    "gentle",
+    "humanized",
+    "collectible"
+  ],
+  "failure_modes": [
+    "decorative character added beside an ordinary lamp instead of emerging from the lamp function",
+    "lamp and character read as two independent objects",
+    "anthropomorphism becomes cartoonish or toy-like",
+    "story overwhelms practical lighting function",
+    "unnecessary decorative parts do not serve anatomy, structure, light, or narrative",
+    "generic Edison-bulb craft aesthetic"
+  ],
+  "tags": [
+    "anthropomorphic",
+    "character",
+    "micro-story",
+    "functional-object",
+    "lighting",
+    "visible-provenance",
+    "reclaimed-materials",
+    "emotional-readability"
+  ],
+  "asset_status": "source_mapped_binary_ingest_pending",
+  "asset_manifest": "assets/manifest.json",
+  "source": "user-provided concept text + 3 images for CONCEPT 06"
+}

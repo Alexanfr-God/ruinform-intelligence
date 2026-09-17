@@ -13,6 +13,7 @@ Every card must teach a **transferable design operator**. The visual world is se
 | `003_wastelight` | Recompose simply | Strong form can come from a minimal recombination of ordinary parts. |
 | `004_trashlight` | Reassign roles | Do not upgrade the material; give the waste a new role. |
 | `005_floatrelic` | Expose invisible force | Make a physical phenomenon part of the visible design. |
+| `006_swinglight` | Turn function into character | Let functional parts become anatomy and micro-story. |
 
 See `index.json` for machine-readable retrieval metadata.
 
@@ -53,6 +54,11 @@ A card must include:
 - retrieval tags
 - provenance
 - a four-role visual manifest
+
+Useful optional fields for richer retrieval and critique:
+
+- `emotion_tags`
+- `failure_modes`
 
 ## Retrieval rule
 
