@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import os
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field, HttpUrl
 
 from .access_control import require_api_access
@@ -18,6 +19,27 @@ app = FastAPI(
     description="Evidence-first intelligence for physical matter.",
     dependencies=[Depends(require_api_access)],
 )
+
+
+@app.middleware("http")
+async def bridge_legacy_lab_navigation(request: Request, call_next):
+    """Keep authenticated Studio users out of the legacy Basic-Auth Lab trap.
+
+    Studio uses a signed cookie while the old /lab pages still use HTTP Basic. A
+    historical BACK TO EVIDENCE LAB link therefore caused browsers to challenge for
+    credentials again. When a Studio cookie is present and a user navigates to the
+    legacy session page, send them back to the equivalent Studio session instead.
+    """
+    path = request.url.path
+    if (
+        request.method == "GET"
+        and path.startswith("/lab/")
+        and request.cookies.get("ruinform_studio_session")
+    ):
+        suffix = path[len("/lab/"):]
+        if suffix and "/" not in suffix:
+            return RedirectResponse(url=f"/studio/{suffix}", status_code=303)
+    return await call_next(request)
 
 
 class MaterialEyeRequest(BaseModel):
