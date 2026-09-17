@@ -1,0 +1,21 @@
+{
+  "id":"002_loadbearer",
+  "title":"LOADBEARER / BOOK SUPPORT",
+  "status":"curated-v0",
+  "primary":"OBJECT / FORM",
+  "secondary":"MATERIAL / DETAIL",
+  "tertiary":"WORLD / LIGHT",
+  "difficulty":"MEDIUM",
+  "operator":"turn_force_into_story",
+  "operator_label":"Turn force into story",
+  "core_formula":"simple physics -> structural trick -> visual narrative -> collectible design",
+  "core_lesson":"TURN STRUCTURAL NECESSITY INTO STORY.",
+  "summary":"A heavy base, angled support and reclaimed wood carry the real load while a silhouette makes it look as if a figure is holding the books.",
+  "learn":["Turn real forces into visible narrative.","FUNCTION CAN BECOME THE VISUAL JOKE.","Let one expressive element create identity while the rest remains structurally calm.","EVERY MATERIAL SHOULD EARN ITS PLACE."],
+  "avoid":["soldier/scavenger as mandatory motif","gas masks","weapons","radiation signs","rust everywhere","brown/orange bunker lighting"],
+  "materials":["reclaimed wood","dark steel","rust / patina","exposed bolts","rough edges"],
+  "tags":["physics","load","bookend","structural-story","reclaimed-wood","steel","collectible-functional-object"],
+  "asset_status":"source_mapped_binary_ingest_pending",
+  "asset_manifest":"assets/manifest.json",
+  "source":"user-provided PDF: concept 2.pdf"
+}
