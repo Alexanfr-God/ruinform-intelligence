@@ -42,7 +42,7 @@ def compile_preview_render_request(
     direction: VisualDirection | None = None,
     aspect_ratio: str = "4:5",
 ) -> RenderRequest:
-    """Compile the concept-stage render from candidate + Visual Director hierarchy."""
+    """Compile the concept-stage render from candidate + high-taste Visual Director."""
 
     candidate = future.candidate
     direction = direction or fallback_visual_direction(
@@ -51,24 +51,23 @@ def compile_preview_render_request(
         render_mode=select_render_mode(future),
     )
     material_by_id = {item.item_id: item for item in state.materials}
-
-    role_by_id: dict[str, str] = {}
-    for use in candidate.material_uses:
-        role_by_id[use.material_item_id] = use.role
+    role_by_id = {use.material_item_id: use.role for use in candidate.material_uses}
 
     def label(material_id: str) -> str:
         item = material_by_id.get(material_id)
         return item.display_name if item is not None else material_id
 
-    hero_label = label(direction.hero_material_id)
-    hierarchy_lines = [f"HERO — {hero_label}: dominant visual anchor; {direction.hero_object}."]
+    hierarchy_lines = [
+        f"HERO — {label(direction.hero_material_id)}: {direction.hero_object}. Keep it visually dominant and unmistakable."
+    ]
     for material_id in direction.secondary_material_ids:
         hierarchy_lines.append(
-            f"SECONDARY — {label(material_id)}: support the hero; never dominate or hide it; candidate role: {role_by_id.get(material_id, 'support')}."
+            f"SECONDARY — {label(material_id)}: actively transform/support the hero; never become a generic base or hide it; "
+            f"candidate role: {role_by_id.get(material_id, 'support')}."
         )
     for material_id in direction.accent_material_ids:
         hierarchy_lines.append(
-            f"ACCENT — {label(material_id)}: use sparingly as rhythm/detail/illumination; candidate role: {role_by_id.get(material_id, 'accent')}."
+            f"ACCENT — {label(material_id)}: use sparingly to reinforce the signature gesture; candidate role: {role_by_id.get(material_id, 'accent')}."
         )
 
     source_lines: list[str] = []
@@ -76,71 +75,81 @@ def compile_preview_render_request(
         material = material_by_id.get(use.material_item_id)
         material_label = material.display_name if material is not None else use.material_item_id
         source_lines.append(
-            f"- {material_label} ({use.material_item_id}): use as {use.role}. Preserve recognizable color, texture, wear, major geometry and source identity."
+            f"- {material_label} ({use.material_item_id}): preserve recognizable color, texture, seams, wear, thickness, geometry and source identity."
         )
 
     operations = "; ".join(candidate.key_operations) or "Use simple physically legible assembly operations."
     additions = "; ".join(candidate.added_materials) or "No significant added materials."
     unresolved = "; ".join(candidate.unresolved_dependencies) or "Ordinary scale-to-fit assumptions only."
     keep = "\n".join(f"- {item}" for item in direction.must_keep)
+    authorship = "\n".join(f"- {item}" for item in direction.authorship_cues)
 
     mode_instruction = {
         "art_object": (
-            "Present it as gallery-grade contemporary design art: one authored sculptural gesture, strong negative space, "
-            "clean silhouette, restrained drama, no craft clutter."
+            "Gallery-grade contemporary collectible art. Prefer one bold sculptural move, material tension, negative space and a silhouette "
+            "that is memorable without relying on a pedestal, fog or generic RGB decoration."
         ),
         "design_product": (
-            "Present it as a premium limited-edition collectible design object: resolved, desirable, visually disciplined, "
-            "design-fair quality, polished product-art photography."
+            "Premium limited-edition design object with strong authorship and disciplined details. It should feel resolved and desirable, "
+            "but not like a generic luxury product render."
         ),
         "realistic_prototype": (
-            "Present it as a beautiful but believable maker prototype: physically legible assembly, minimal additions, "
-            "honest joins, workshop plausibility without looking crude."
+            "Beautiful and physically believable maker prototype with one strong formal idea, honest joins and visible assembly logic. "
+            "Buildable must not mean visually ordinary."
         ),
     }[direction.render_mode]
 
     prompt = (
-        f"RUINFORM VISUAL DIRECTOR / {direction.render_mode.upper()}\n\n"
-        f"OBJECT TYPE: {direction.object_type}\n"
-        f"VISUAL THESIS: {direction.visual_thesis}\n"
-        f"SIGNATURE GESTURE: {direction.signature_gesture}\n"
-        f"SILHOUETTE: {direction.silhouette}\n\n"
-        "VISUAL HIERARCHY — non-negotiable:\n"
+        f"RUINFORM HIGH-TASTE VISUAL / {direction.render_mode.upper()}\n\n"
+        "ABSOLUTE PRIORITY:\n"
+        f"1. HERO: {direction.hero_object}\n"
+        f"2. VISUAL THESIS: {direction.visual_thesis}\n"
+        f"3. CONCEPTUAL TENSION: {direction.conceptual_tension}\n"
+        f"4. MATERIAL RELATIONSHIP: {direction.material_relationship}\n"
+        f"5. SIGNATURE GESTURE: {direction.signature_gesture}\n"
+        f"6. REJECT THIS ORDINARY SOLUTION: {direction.ordinary_solution_to_reject}\n\n"
+        "The final image must make the signature gesture obvious within one second. If the result can be described as merely stacked, sleeved, "
+        "evenly wrapped, symmetrically decorated, or 'LED added to object', it has failed the brief.\n\n"
+        "SOURCE HIERARCHY:\n"
         + "\n".join(hierarchy_lines)
-        + "\n\nSOURCE MATTER — preserve these supplied references faithfully:\n"
+        + "\n\nSOURCE IMAGE FIDELITY:\n"
         + "\n".join(source_lines)
         + "\n\n"
-        f"CANDIDATE INTENT: {candidate.one_line}\n"
-        f"ARTISTIC THESIS: {candidate.artistic_thesis}\n"
-        f"TRANSFORMATION LOGIC: {candidate.transformation_logic}\n"
-        f"PHYSICAL OPERATIONS: {operations}\n"
-        f"ALLOWED SIMPLE ADDITIONS: {additions}\n"
-        f"KEEP UNRESOLVED RATHER THAN FAKING: {unresolved}\n\n"
+        f"SILHOUETTE: {direction.silhouette}\n"
+        f"NEGATIVE SPACE: {direction.negative_space}\n"
+        f"COLOR STRATEGY: {direction.color_strategy}\n\n"
+        "AUTHORSHIP CUES:\n"
+        f"{authorship}\n\n"
         f"COMPOSITION: {direction.composition}\n"
         f"CAMERA: {direction.camera}\n"
         f"LIGHTING: {direction.lighting}\n"
-        f"ENVIRONMENT: {direction.environment}\n\n"
+        f"ENVIRONMENT: {direction.environment}\n"
         f"MODE DIRECTION: {mode_instruction}\n\n"
+        f"CANDIDATE INTENT: {candidate.one_line}\n"
+        f"PHYSICAL OPERATIONS AVAILABLE: {operations}\n"
+        f"ALLOWED SIMPLE ADDITIONS: {additions}\n"
+        f"KEEP UNRESOLVED RATHER THAN FAKING: {unresolved}\n\n"
         "MUST KEEP:\n"
         f"{keep}\n\n"
-        "Create ONE finished photorealistic object. The result must be understandable in one second. "
-        "It must feel intentionally designed, not like a list of source objects pasted together. "
-        "Protect the hero object from being swallowed by secondary material. "
-        "Use secondary matter to frame, support, wrap, cradle, punctuate or structurally transform the hero according to the thesis. "
-        "Use accents with restraint. Every visible part must strengthen the same central idea. "
-        "Preserve provenance so the real source matter remains recognizable. "
-        "Use material-specific reflections, folds, seams, thickness, translucency and wear. "
+        "Create ONE finished photorealistic authored object. Preserve provenance of the real source materials. "
+        "Secondary material must enter into a meaningful spatial/formal relationship with the hero, not merely form a base. "
+        "Accent light must reveal or intensify the signature gesture, never substitute for the idea. "
+        "Use realistic material-specific reflections, translucency, folds, seams, thickness and wear. "
         "Do not add labels, captions, logos, plaques, generated text or decorative storytelling props. "
         "Exact dimensions may be visually approximated for concept exploration only."
     )
 
     negative_constraints = [
         *direction.must_avoid,
+        f"Do not produce the rejected ordinary solution: {direction.ordinary_solution_to_reject}",
+        "Do not reduce the concept to an evenly spiraled LED strip around the hero.",
+        "Do not reduce soft material to a stacked donut/ring base unless that exact base is essential to the selected signature gesture.",
+        "Do not use generic cyberpunk RGB styling as a substitute for form or concept.",
         "Do not invent additional major source objects that were not supplied.",
         "Do not turn one coherent object into several competing objects or accessories.",
         "Do not hide the hero material behind a completely unrelated shell or oversized secondary element.",
         "Do not use magical seamless fusion, floating unsupported parts, or impossible geometry.",
-        "Do not add random straps, pouches, bags, devices, cables, stands, handles, mannequins, or hardware unless explicitly required by the visual direction or candidate.",
+        "Do not add random straps, pouches, bags, devices, cables, stands, handles, mannequins, or hardware unless explicitly required by the direction or candidate.",
         "Do not imply tested electrical, heat, load, structural, or safety certification.",
         "Do not generate text, logos, labels, plaques, watermarks, or product copy inside the image.",
         "Do not use a generic craft-collage aesthetic; make one authored design statement.",

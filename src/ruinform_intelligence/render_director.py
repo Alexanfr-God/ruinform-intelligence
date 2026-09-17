@@ -28,15 +28,21 @@ class VisualDirection(StrictModel):
     secondary_material_ids: list[str]
     accent_material_ids: list[str]
     object_type: str
-    visual_thesis: str
-    signature_gesture: str
-    silhouette: str
+    visual_thesis: str = Field(min_length=12)
+    conceptual_tension: str = Field(min_length=12)
+    material_relationship: str = Field(min_length=12)
+    signature_gesture: str = Field(min_length=12)
+    ordinary_solution_to_reject: str = Field(min_length=12)
+    silhouette: str = Field(min_length=12)
+    negative_space: str = Field(min_length=8)
+    color_strategy: str = Field(min_length=8)
     composition: str
     camera: str
     lighting: str
     environment: str
+    authorship_cues: list[str] = Field(min_length=2, max_length=7)
     must_keep: list[str] = Field(min_length=3, max_length=10)
-    must_avoid: list[str] = Field(min_length=3, max_length=16)
+    must_avoid: list[str] = Field(min_length=5, max_length=18)
 
 
 class VisualDirectorError(RuntimeError):
@@ -53,7 +59,7 @@ def select_render_mode(future: ReviewedFuture) -> RenderMode:
         return override  # type: ignore[return-value]
 
     category = future.candidate.category
-    if category == "sculpture":
+    if category in {"sculpture", "functional_art", "lighting"}:
         return "art_object"
     if category == "utility":
         return "realistic_prototype"
@@ -79,12 +85,21 @@ def fallback_visual_direction(
         accent_material_ids=[],
         object_type=future.candidate.name,
         visual_thesis=future.candidate.artistic_thesis,
+        conceptual_tension="Create a clear visual tension between the rigid hero and transformed supporting matter.",
+        material_relationship="Secondary materials should actively transform, frame or interrupt the hero rather than merely sit beside it.",
         signature_gesture=future.candidate.transformation_logic,
-        silhouette="One immediately readable finished object with a single dominant silhouette.",
+        ordinary_solution_to_reject="Reject the obvious stacked, evenly wrapped or merely decorated version of this concept.",
+        silhouette="One immediately readable finished object with a distinctive non-generic silhouette.",
+        negative_space="Use deliberate openings and breathing room so the hero remains legible.",
+        color_strategy="Preserve source colors and use accents as controlled contrast rather than equal visual noise.",
         composition="Single hero object, isolated from clutter, centered or deliberately asymmetric.",
-        camera="Three-quarter product view at object height, no wide-angle distortion.",
-        lighting="Controlled cinematic product lighting with material-specific highlights and restrained contrast.",
-        environment="Minimal dark gallery or refined workshop background appropriate to the render mode.",
+        camera="Three-quarter editorial object view at object height, no wide-angle distortion.",
+        lighting="Sculptural editorial lighting that reveals material contrast, depth, folds, glass and surface transitions.",
+        environment="Minimal gallery-like setting with no decorative storytelling props.",
+        authorship_cues=[
+            "One surprising but coherent material gesture.",
+            "A silhouette that could be recognized from across the room.",
+        ],
         must_keep=[
             "Keep the hero source object clearly recognizable.",
             "Keep source colors and material texture recognizable.",
@@ -95,6 +110,7 @@ def fallback_visual_direction(
             "Do not create visual clutter or several competing concepts.",
             "Do not add text, labels, logos, plaques, or branding.",
             "Do not hide the hero object behind the secondary material.",
+            "Do not fall back to an evenly wrapped LED spiral, stacked ring base, or simple decorative sleeve unless the candidate absolutely requires it.",
         ],
     )
 
@@ -130,26 +146,30 @@ async def generate_visual_direction(
     client = client or AsyncOpenAI()
 
     candidate_ids = {use.material_item_id for use in future.candidate.material_uses}
+    role_by_id = {use.material_item_id: use.role for use in future.candidate.material_uses}
     material_lines = []
     for item in state.materials:
         if candidate_ids and item.item_id not in candidate_ids:
             continue
         observations = [obs.label for obs in item.observations[:6]]
         material_lines.append(
-            f"- {item.item_id}: {item.display_name}; observed: {'; '.join(observations) or 'no extra observations'}"
+            f"- {item.item_id}: {item.display_name}; candidate role: {role_by_id.get(item.item_id, 'source')}; "
+            f"observed: {'; '.join(observations) or 'no extra observations'}"
         )
 
     content: list[dict[str, object]] = [
         {
             "type": "input_text",
             "text": (
-                "Direct the next RUINFORM image generation.\n\n"
+                "Direct the next RUINFORM image generation at HIGH TASTE.\n\n"
                 f"RENDER MODE: {render_mode}\n\n"
                 f"SOURCE MATERIALS:\n{chr(10).join(material_lines)}\n\n"
                 f"PROJECT STATE: {compact_state_json(state)}\n\n"
                 f"SELECTED CANDIDATE: {future.candidate.model_dump_json()}\n\n"
                 f"FEASIBILITY REVIEW: {future.review.model_dump_json()}\n\n"
-                "Choose one hero, compress the concept into one strong visual thesis, and aggressively remove visual noise."
+                "The previous failure mode to fight is a clean but generic render: source objects stacked, sleeved, "
+                "or evenly wrapped with light. Choose one hero, one conceptual tension and one authored signature gesture. "
+                "Reject the most obvious decorative solution even if it is technically valid."
             ),
         }
     ]
@@ -165,7 +185,7 @@ async def generate_visual_direction(
 
     response = await client.responses.create(
         model=model,
-        reasoning={"effort": "low"},
+        reasoning={"effort": "medium"},
         instructions=load_visual_director_prompt(),
         input=[{"role": "user", "content": content}],
         text={
