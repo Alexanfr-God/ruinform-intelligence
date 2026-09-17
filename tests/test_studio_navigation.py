@@ -1,12 +1,13 @@
 from fastapi.testclient import TestClient
 
 from ruinform_intelligence.server import app
+from ruinform_intelligence.studio_controls import router as studio_controls_router
 
 
 def test_project_controls_route_is_registered() -> None:
     paths = {
         route.path
-        for route in app.routes
+        for route in studio_controls_router.routes
         if hasattr(route, "path")
     }
     assert "/studio/{session_id}/controls" in paths
