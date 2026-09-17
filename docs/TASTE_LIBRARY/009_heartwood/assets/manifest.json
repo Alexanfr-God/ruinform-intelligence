@@ -1,0 +1,12 @@
+{
+  "card_id": "009_heartwood",
+  "asset_status": "source_mapped_binary_ingest_pending",
+  "roles": {
+    "01_source_parts": "Mapped to user-provided RUINFORM poster image for concept 09 (parts panel with log section, base block, bulb, socket, tools).",
+    "02_principle_assembly": "Mapped to user-provided RUINFORM poster image for concept 09 (build steps / split-hollow / socket installation / assembly sequence).",
+    "03_clean_product": "Mapped to user-provided neutral product shot image for concept 09.",
+    "04_hero_world": "Mapped to user-provided gallery/interior hero shot image for concept 09."
+  },
+  "notes": "Binary image ingest into the canonical Taste Library bucket is pending. This manifest defines the required four-role mapping.",
+  "provenance": "User conversation upload, concept 09"
+}
