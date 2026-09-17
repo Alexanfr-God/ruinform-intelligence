@@ -22,6 +22,18 @@ The Taste Library is useful only if each card contributes a different **design o
 6. **SWINGLIGHT - Turn function into character**  
    Let functional components become anatomy, emotion, and a readable micro-story.
 
+7. **FOUNDLING - Discover latent form**  
+   Do not create form too early. First recognize what the material already wants to become.
+
+8. **COINPOUR - Freeze the action**  
+   Capture a familiar action mid-event and conceal the support inside the visual story.
+
+9. **HEARTWOOD - Remove to reveal**  
+   Subtract material to open hidden volume and let the original matter frame the new function.
+
+10. **TRILUME - Build through repetition**  
+    Turn repeated weak elements into modules, then use spacing, alignment and shared structure to create one stronger system.
+
 ## Cross-card rules
 
 - Preserve provenance: the source matter should remain legible.
@@ -32,3 +44,7 @@ The Taste Library is useful only if each card contributes a different **design o
 - References teach principles, not exact silhouettes.
 - When anthropomorphism is used, it must emerge from function rather than decorative character styling.
 - Emotional readability is useful only when it does not weaken the object's real function or material logic.
+- Natural variation can itself be a source of product value.
+- Subtraction and empty space are valid design moves, not absence of design.
+- Repetition must have a rule: size, interval, axis, direction, count and shared structure.
+- Safety constraints are part of buildability; functional electrical objects must carry explicit safety metadata.
