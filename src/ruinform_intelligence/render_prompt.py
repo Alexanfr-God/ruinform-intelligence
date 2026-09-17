@@ -34,6 +34,72 @@ def _source_references(state: ProjectState, future: ReviewedFuture) -> list[Rend
     return refs
 
 
+def compile_preview_render_request(
+    *,
+    state: ProjectState,
+    future: ReviewedFuture,
+    aspect_ratio: str = "4:5",
+) -> RenderRequest:
+    """Compile the fast concept-stage render without another LLM round-trip.
+
+    Concept Preview is intentionally visual-first. The selected candidate already contains
+    enough structured design intent for a strong image prompt, so we avoid generating a
+    separate VisualBrief and avoid blocking on a render critic before the user has even
+    decided whether the visual direction is worth pursuing.
+    """
+
+    candidate = future.candidate
+    material_by_id = {item.item_id: item for item in state.materials}
+    material_lines: list[str] = []
+    for use in candidate.material_uses:
+        material = material_by_id.get(use.material_item_id)
+        label = material.display_name if material is not None else use.material_item_id
+        material_lines.append(
+            f"- {label}: use as {use.role}. Preserve recognizable source color, texture, wear, and identity."
+        )
+
+    operations = "; ".join(candidate.key_operations) or "Use simple physically legible assembly operations."
+    additions = "; ".join(candidate.added_materials) or "No significant added materials."
+    unresolved = "; ".join(candidate.unresolved_dependencies) or "Ordinary scale-to-fit assumptions only."
+
+    prompt = (
+        f"RUINFORM CONCEPT VISUALIZATION — {candidate.name}\n\n"
+        f"Design intent: {candidate.one_line}\n"
+        f"Artistic thesis: {candidate.artistic_thesis}\n"
+        f"Transformation: {candidate.transformation_logic}\n\n"
+        "SOURCE MATTER — preserve these supplied references faithfully:\n"
+        + "\n".join(material_lines)
+        + "\n\n"
+        f"Physical operations: {operations}\n"
+        f"Allowed simple additions: {additions}\n"
+        f"Keep unresolved rather than pretending verified: {unresolved}\n\n"
+        "Create ONE finished, photorealistic object that is immediately understandable from a single hero image. "
+        "The result must look like a real object assembled from the supplied matter, not a collage, not loose items placed next to one another, and not an impossible seamless morph. "
+        "Use visible, believable joins, folds, clips, stitching, wraps, fasteners, bases, or cable routing when relevant. "
+        "Preserve obvious provenance: viewers should still recognize where the source materials came from. "
+        "Aim for a strong contemporary collectible-design / maker-art result while keeping the construction visually plausible. "
+        "Use a clean dark or warm workshop/gallery environment, cinematic product lighting, realistic material texture, and a confident centered composition. "
+        "Do not add labels, captions, logos, plaques, or generated text. "
+        "Exact dimensions may be visually approximated for concept exploration only."
+    )
+
+    negative_constraints = [
+        "Do not invent additional major source objects that were not supplied.",
+        "Do not hide the source materials behind a completely unrelated shell.",
+        "Do not use magical seamless fusion, floating unsupported parts, or impossible geometry.",
+        "Do not imply tested electrical, heat, load, structural, or safety certification.",
+        "Do not generate text, logos, labels, plaques, watermarks, or product copy inside the image.",
+    ]
+
+    return RenderRequest(
+        candidate_id=candidate.candidate_id,
+        prompt=prompt,
+        negative_constraints=negative_constraints,
+        references=_source_references(state, future),
+        aspect_ratio=aspect_ratio,
+    )
+
+
 def compile_render_request(
     *,
     state: ProjectState,
