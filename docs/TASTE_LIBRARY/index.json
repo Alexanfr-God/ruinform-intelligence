@@ -1,0 +1,10 @@
+{
+  "version": "v0.1",
+  "cards": [
+    {"id":"001_watcher","title":"WATCHER / KINETIC PORTRAIT","operator":"mutate_behavior","difficulty":"not_explicitly_specified","path":"001_watcher/concept.json"},
+    {"id":"002_loadbearer","title":"LOADBEARER / BOOK SUPPORT","operator":"turn_force_into_story","difficulty":"MEDIUM","path":"002_loadbearer/concept.json"},
+    {"id":"003_wastelight","title":"WASTELIGHT / SALVAGED FLEX LAMP","operator":"recompose_simply","difficulty":"EASY","path":"003_wastelight/concept.json"},
+    {"id":"004_trashlight","title":"TRASHLIGHT / MICRO SALVAGE LAMP","operator":"reassign_roles","difficulty":"EASY","path":"004_trashlight/concept.json"},
+    {"id":"005_floatrelic","title":"FLOATRELIC / MAGNETIC BALANCE","operator":"expose_invisible_force","difficulty":"EASY-MEDIUM","path":"005_floatrelic/concept.json"}
+  ]
+}
