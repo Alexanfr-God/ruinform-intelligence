@@ -7,6 +7,7 @@ from .future_api import router as future_forms_router
 from .lab import router as lab_router
 from .lab_postproduction import router as lab_postproduction_router
 from .live_api import router as live_transformations_router
+from .mvp_entry import router as mvp_entry_router
 from .render_api import router as render_router
 from .studio import router as studio_router
 
@@ -17,6 +18,7 @@ app.include_router(future_forms_router)
 app.include_router(render_router)
 app.include_router(live_transformations_router)
 app.include_router(studio_router)
+app.include_router(mvp_entry_router)
 # Register post-production before the legacy lab router so the enhanced
 # render endpoint owns POST /lab/{session_id}/render/{candidate_id}.
 app.include_router(lab_postproduction_router)
