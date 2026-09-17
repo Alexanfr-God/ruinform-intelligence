@@ -38,6 +38,34 @@ class PreviewBatch(_StrictModel):
     candidates: list[PreviewCandidate] = Field(min_length=4, max_length=4)
 
 
+def _preview_schema(material_ids: list[str]) -> dict[str, object]:
+    """Lock structured output to the material IDs that actually exist in this project."""
+    schema = PreviewBatch.model_json_schema()
+    defs = schema.get("$defs")
+    if not isinstance(defs, dict):
+        return schema
+
+    material_use = defs.get("MaterialUse")
+    if isinstance(material_use, dict):
+        properties = material_use.get("properties")
+        if isinstance(properties, dict):
+            properties["material_item_id"] = {
+                "type": "string",
+                "enum": material_ids,
+            }
+
+    candidate_form = defs.get("CandidateForm")
+    if isinstance(candidate_form, dict):
+        properties = candidate_form.get("properties")
+        if isinstance(properties, dict):
+            properties["candidate_id"] = {
+                "type": "string",
+                "enum": ["preview_01", "preview_02", "preview_03", "preview_04"],
+            }
+
+    return schema
+
+
 def _instructions(mode: str) -> str:
     base = load_prompt_file("design_brain.md")
     try:
@@ -74,6 +102,13 @@ async def generate_concept_preview(
     model = model or os.getenv("RUINFORM_CONCEPT_PREVIEW_MODEL", DEFAULT_MODEL)
     client = client or AsyncOpenAI()
 
+    material_ids = [item.item_id for item in state.materials]
+    if not material_ids:
+        raise ConceptPreviewError("Design Brain requires at least one identified material")
+
+    material_contract = "\n".join(
+        f"- {item.item_id} = {item.display_name}" for item in state.materials
+    )
     content: list[dict[str, object]] = [
         {
             "type": "input_text",
@@ -81,6 +116,8 @@ async def generate_concept_preview(
                 "Invent four RUINFORM futures from the ACTUAL source photographs attached to this message. "
                 "Study the images directly before proposing concepts. Do not treat the ProjectState text as a replacement for visual inspection.\n\n"
                 f"Project state: {compact_state_json(state)}\n\n"
+                "MATERIAL ID CONTRACT — material_uses may reference ONLY these exact IDs; never invent or rewrite an ID:\n"
+                f"{material_contract}\n\n"
                 f"User intent: {user_intent or 'open exploration'}\n\n"
                 "The product goal is not generic upcycling. Create desirable post-consumer artifacts with visible source provenance, "
                 "strong silhouette, one authored transformation gesture, and believable material logic. "
@@ -113,7 +150,7 @@ async def generate_concept_preview(
                 "type": "json_schema",
                 "name": "ruinform_concept_preview",
                 "strict": True,
-                "schema": PreviewBatch.model_json_schema(),
+                "schema": _preview_schema(material_ids),
             }
         },
     )
@@ -125,7 +162,7 @@ async def generate_concept_preview(
     except (json.JSONDecodeError, ValueError) as exc:
         raise ConceptPreviewError("Design Brain returned invalid structured output") from exc
 
-    material_ids = {item.item_id for item in state.materials}
+    material_id_set = set(material_ids)
     reviewed: list[ReviewedFuture] = []
     seen_ids: set[str] = set()
     for item in batch.candidates:
@@ -133,7 +170,7 @@ async def generate_concept_preview(
         if candidate.candidate_id in seen_ids:
             raise ConceptPreviewError("Design Brain returned duplicate candidate IDs")
         seen_ids.add(candidate.candidate_id)
-        unknown_ids = {use.material_item_id for use in candidate.material_uses} - material_ids
+        unknown_ids = {use.material_item_id for use in candidate.material_uses} - material_id_set
         if unknown_ids:
             raise ConceptPreviewError(
                 "Design Brain referenced unknown material IDs: " + ", ".join(sorted(unknown_ids))
