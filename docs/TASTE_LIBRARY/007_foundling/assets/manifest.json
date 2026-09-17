@@ -1,0 +1,12 @@
+{
+  "card_id": "007_foundling",
+  "asset_status": "source_mapped_binary_ingest_pending",
+  "roles": {
+    "01_source_parts": "Mapped to user-provided RUINFORM poster image for concept 07 (parts panel with stones, frame, paper, marker, adhesive).",
+    "02_principle_assembly": "Mapped to user-provided RUINFORM poster image for concept 07 (build steps / shape selection / minimal intervention sequence).",
+    "03_clean_product": "Mapped to user-provided neutral product shot image for concept 07.",
+    "04_hero_world": "Mapped to user-provided gallery/interior hero shot image for concept 07."
+  },
+  "notes": "Binary image ingest into the canonical Taste Library bucket is pending. This manifest defines the required four-role mapping.",
+  "provenance": "User conversation upload, concept 07"
+}
