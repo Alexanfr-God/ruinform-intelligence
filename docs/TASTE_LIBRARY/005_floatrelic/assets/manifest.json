@@ -1,0 +1,11 @@
+{
+  "card_id":"005_floatrelic",
+  "binary_ingest_status":"pending_repository_or_bucket_ingest",
+  "required_roles":["source_parts","principle_assembly","clean_product","hero_world"],
+  "assets":[
+    {"role":"source_parts","target_path":"assets/01_source_parts.jpg","source_document":"user-provided concept 5 poster image","source_page":null,"crop_note":"Parts panel: wire, staple strips, magnet, bead, optional glue.","status":"source_mapped"},
+    {"role":"principle_assembly","target_path":"assets/02_principle_assembly.jpg","source_document":"user-provided concept 5 poster image","source_page":null,"crop_note":"Wire-relic, frame, magnet setup and assembly panels.","status":"source_mapped"},
+    {"role":"clean_product","target_path":"assets/03_clean_product.jpg","source_document":"user-provided clean product image","source_page":null,"crop_note":"Neutral product shot supplied directly.","status":"source_mapped"},
+    {"role":"hero_world","target_path":"assets/04_hero_world.jpg","source_document":"user-provided hero image","source_page":null,"crop_note":"Cold industrial/gallery RUINFORM world shot supplied directly.","status":"source_mapped"}
+  ]
+}
