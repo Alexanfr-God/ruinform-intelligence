@@ -1,0 +1,21 @@
+{
+  "id":"004_trashlight",
+  "title":"TRASHLIGHT / MICRO SALVAGE LAMP",
+  "status":"curated-v0",
+  "primary":"OBJECT / FORM",
+  "secondary":"MATERIAL / DETAIL",
+  "tertiary":"WORLD / LIGHT",
+  "difficulty":"EASY",
+  "operator":"reassign_roles",
+  "operator_label":"Reassign roles",
+  "core_formula":"real trash -> simple assembly -> light intervention -> small collectible lamp",
+  "core_lesson":"DON'T UPGRADE THE MATERIAL - REASSIGN ITS ROLE.",
+  "summary":"An empty cigarette pack, capped screw, plastic cup, bottle cap and foil are reassigned into a small lamp without hiding their low-status origins.",
+  "learn":["Low-status waste can become collectible through role reassignment.","Keep provenance visible.","Simplicity can be strong when form, function and origin are readable."],
+  "avoid":["exact cigarette pack","exact plastic cup","exact screw","exact lamp silhouette","bunker / rust / brown-light presentation"],
+  "materials":["crumpled packaging","cheap plastic","transparent disposable cup","threaded screw","bottle cap","crumpled foil","simple joints","glue / tape / hand assembly"],
+  "tags":["easy","real-trash","role-reassignment","micro-salvage","lamp","honest-provenance"],
+  "asset_status":"source_mapped_binary_ingest_pending",
+  "asset_manifest":"assets/manifest.json",
+  "source":"user-provided PDF: concept 4.pdf"
+}
