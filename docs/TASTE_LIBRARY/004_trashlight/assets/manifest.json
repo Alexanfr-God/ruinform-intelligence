@@ -1,0 +1,11 @@
+{
+  "card_id":"004_trashlight",
+  "binary_ingest_status":"pending_repository_or_bucket_ingest",
+  "required_roles":["source_parts","principle_assembly","clean_product","hero_world"],
+  "assets":[
+    {"role":"source_parts","target_path":"assets/01_source_parts.jpg","source_document":"concept 4.pdf","source_page":1,"crop_note":"Parts panel: cigarette pack, capped screw, plastic cup, bottle cap, foil.","status":"source_mapped"},
+    {"role":"principle_assembly","target_path":"assets/02_principle_assembly.jpg","source_document":"concept 4.pdf","source_page":1,"crop_note":"Build-steps panel.","status":"source_mapped"},
+    {"role":"clean_product","target_path":"assets/03_clean_product.jpg","source_document":"concept 4.pdf","source_page":3,"crop_note":"Neutral product shot.","status":"source_mapped"},
+    {"role":"hero_world","target_path":"assets/04_hero_world.jpg","source_document":"concept 4.pdf","source_page":2,"crop_note":"Cinematic RUINFORM world shot.","status":"source_mapped"}
+  ]
+}
