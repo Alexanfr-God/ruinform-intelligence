@@ -29,13 +29,15 @@ Everything else is roadmap until this path creates reliable wow.
 ```mermaid
 flowchart LR
     A[Original photos] --> B[Shared ProjectState]
+    U[Creative Intent] --> B
     A --> C[Vision-first Design Brain]
     B --> C
-    T[Taste Library 2-4 refs] --> C
+    T[Taste Library / Design Grammar] --> C
     S[RUINFORM Style Bible] --> C
     C --> D[Selected concept / VisualSpec]
     A --> E[GPT Image 2.5 Sunburst]
     D --> E
+    B --> E
     E --> F[WOW artifact image]
     F --> G{User wants it?}
     G -- yes --> H[MAKE IT REAL later]
@@ -53,7 +55,9 @@ One source of truth. Modules do not rely on lossy summaries as their only contex
 Keep:
 - original source photos
 - material IDs / observations
-- user intent
+- persistent Creative Intent
+- difficulty mode
+- background mode
 - constraints
 - selected concept
 - visual direction
@@ -61,6 +65,17 @@ Keep:
 - later: approved image + build plan
 
 Any visual module that needs the originals receives the original photos again.
+
+### Creative Intent
+
+User guidance is a first-class ProjectState object, not a string appended to the image prompt.
+
+Current controls:
+- optional Creative Direction
+- EASY / MEDIUM / WILD difficulty
+- CLEAN STUDIO / RUINFORM WORLD presentation
+
+Background mode is presentation-only: the object concept must work before scenery is added.
 
 ### Design Brain
 
@@ -74,6 +89,7 @@ Responsibilities:
 - reject obvious upcycling ideas
 - preserve provenance
 - create four distinct futures
+- use persistent Creative Intent
 - hand structured concept data forward
 
 Plugin-ready skill source:
@@ -97,11 +113,21 @@ Keep adapter for benchmark/fallback, but no longer default.
 
 ### Taste Library
 
-Visual few-shot calibration, not fine-tuning.
+A Design Grammar, not a moodboard and not fine-tuning.
 
-Start with 6–10 excellent references, not 50 random images.
+The first 10 curated cards are now present:
+- WATCHER — Mutate behavior
+- LOADBEARER — Turn force into story
+- WASTELIGHT — Recompose simply
+- TRASHLIGHT — Reassign roles
+- FLOATRELIC — Expose invisible force
+- SWINGLIGHT — Turn function into character
+- FOUNDLING — Discover latent form
+- COINPOUR — Freeze the action
+- HEARTWOOD — Remove to reveal
+- TRILUME — Build through repetition
 
-Retrieve 2–4 relevant references per project.
+Current runtime uses the textual grammar. Next retrieval stage should select only 2–4 relevant cards/visual references per project rather than sending a growing library wholesale.
 
 Structure and metadata rules:
 `docs/TASTE_LIBRARY/README.md`
@@ -111,19 +137,28 @@ Structure and metadata rules:
 World / material / photographic language:
 `docs/RUINFORM_STYLE_BIBLE.md`
 
+### Eval Library — next
+
+A learning memory for real RUINFORM runs.
+
+Each evaluation should preserve:
+- source set
+- four concepts
+- selected concept
+- render
+- idea score
+- render score
+- outcome: success / mixed / fail
+- GOOD notes
+- BAD notes
+- reusable failure tags
+- next hypothesis
+
+Taste Library teaches **what good design is**. Eval Library teaches **where RUINFORM failed before**.
+
 ### Build Brain — later
 
 Only after `photos → image` reliably produces things worth building.
-
----
-
-## Current critical discovery
-
-The old Concept Architect selected concepts from compact ProjectState text only. Original photographs were not shown until the later Visual Director stage.
-
-That means a weak concept could be selected first and the renderer was then asked to make the weak idea beautiful.
-
-**Decision:** concept generation becomes vision-first. The Design Brain must see the original photographs before selecting futures.
 
 ---
 
@@ -146,32 +181,71 @@ Learning: changing renderer alone is insufficient if the concept is weak.
 - [x] pass original photographs into concept generation
 - [x] increase concept-stage creative reasoning priority
 - [x] weight originality / artistic impact more strongly in preview ranking
-- [ ] rerun same real source set from the beginning
-- [ ] judge concept quality before rendering
+- [x] rerun new real source sets from the beginning
+- [x] judge concept quality before rendering
 
-**Gate:** at least one of four concepts should feel meaningfully non-obvious before image generation.
+Learning: concept quality improved meaningfully; Visual Director / authorship is now a distinct bottleneck.
 
 ### RFM-INT-0010 — Taste Library micro-v0
 
 - [x] create structure + README
-- [ ] curate first 6–10 references with user
-- [ ] add metadata
-- [ ] retrieve 2–4 relevant refs per concept request
-- [ ] pass selected refs to Design Brain
+- [x] curate first 10 references with user
+- [x] add metadata / Design Operators
+- [x] pass textual Design Grammar to Design Brain
+- [ ] smart retrieval of only 2–4 relevant cards
+- [ ] pass selected visual references to Design Brain / Visual Director
 
-### RFM-INT-0011 — 5–10 real evaluation cases
+### RFM-INT-0011 — Production render path stabilization
 
-For each case capture:
-- source photos
-- chosen concept
-- final image
-- wow score
-- provenance score
-- originality score
-- build desire yes/no
-- failure note
+- [x] GPT Image primary production path
+- [x] normalize source images before OpenAI image generation
+- [x] lock concept material IDs to actual ProjectState materials
+- [x] verify real source → concepts → selected render path
 
-### RFM-INT-0012 — Hackathon landing / demo polish
+### RFM-INT-0013 — LEARNING LOOP
+
+#### Wave 1 — Creative Intent controls
+
+- [x] persistent Creative Direction in ProjectState
+- [x] EASY / MEDIUM / WILD difficulty mode
+- [x] CLEAN STUDIO / RUINFORM WORLD background mode
+- [x] Design Brain receives Creative Intent
+- [x] Visual Director receives Creative Intent
+- [x] render prompt enforces object-first background contract
+- [x] keep background mode from changing the core concept
+- [ ] user validation tests
+
+#### Wave 2 — Eval Library v0
+
+- [ ] persist every evaluation case
+- [ ] success / mixed / fail outcome
+- [ ] idea and render scores
+- [ ] GOOD / BAD notes
+- [ ] reusable failure tags
+- [ ] first Orbit Scribe evaluation record
+
+#### Wave 3 — Smart retrieval
+
+- [ ] structured material / form / operation features
+- [ ] semantic retrieval over Design Operators
+- [ ] diversity reranking
+- [ ] retrieve 2–4 Taste Cards only
+- [ ] retrieve 1–2 relevant past failure patterns
+- [ ] feed visual references when asset bucket is ready
+
+### RFM-INT-0014 — 10 controlled real evaluation cases
+
+For each case:
+- upload source photos
+- generate four concepts
+- judge IDEA before rendering
+- render only the strongest concept
+- score IMAGE separately
+- record GOOD / BAD and failure tags
+
+Target: at least 6–7 of 10 sets produce one concept that the user genuinely wants to see or build.
+
+### RFM-INT-0015 — Hackathon landing / demo polish
 
 - world-first landing
 - controlled closed alpha
@@ -213,8 +287,11 @@ We use ready-made infrastructure wherever possible and write custom code only ar
 - Higgsfield is parked, not deleted.
 - Original photos must be available to concept and visual stages.
 - One shared ProjectState remains central.
+- Creative Direction is persistent project context, not a raw image prompt append.
+- Background Mode changes presentation, not the object idea.
 - RUINFORM Design Brain should be reusable as a Skill/Plugin brain.
-- Taste Library starts small: 6–10 curated references.
+- Taste Library first version = 10 distinct Design Operators.
+- Eval Library becomes the memory of success / mixed / failure patterns.
 - Post-consumer / post-apocalyptic salvage economy is core product identity.
 - Hackathon uses closed/quota-controlled testing if necessary to protect API spend.
 - Waiting mini-game is recorded but postponed.
