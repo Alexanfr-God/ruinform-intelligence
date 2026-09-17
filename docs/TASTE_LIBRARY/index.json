@@ -6,6 +6,10 @@
     {"id":"003_wastelight","title":"WASTELIGHT / SALVAGED FLEX LAMP","operator":"recompose_simply","difficulty":"EASY","path":"003_wastelight/concept.json"},
     {"id":"004_trashlight","title":"TRASHLIGHT / MICRO SALVAGE LAMP","operator":"reassign_roles","difficulty":"EASY","path":"004_trashlight/concept.json"},
     {"id":"005_floatrelic","title":"FLOATRELIC / MAGNETIC BALANCE","operator":"expose_invisible_force","difficulty":"EASY-MEDIUM","path":"005_floatrelic/concept.json"},
-    {"id":"006_swinglight","title":"SWINGLIGHT / LIVING FUNCTION","operator":"turn_function_into_character","difficulty":"EASY-MEDIUM","path":"006_swinglight/concept.json"}
+    {"id":"006_swinglight","title":"SWINGLIGHT / LIVING FUNCTION","operator":"turn_function_into_character","difficulty":"EASY-MEDIUM","path":"006_swinglight/concept.json"},
+    {"id":"007_foundling","title":"FOUNDLING / FOUND MATTER CHARACTER","operator":"discover_latent_form","difficulty":"VERY EASY","path":"007_foundling/concept.json"},
+    {"id":"008_coinpour","title":"COINPOUR / FROZEN FLOW ILLUSION","operator":"freeze_the_action","difficulty":"EASY-MEDIUM","path":"008_coinpour/concept.json"},
+    {"id":"009_heartwood","title":"HEARTWOOD / REVEAL THE INNER VALUE","operator":"remove_to_reveal","difficulty":"MEDIUM","path":"009_heartwood/concept.json"},
+    {"id":"010_trilume","title":"TRILUME / REPETITION BUILDS FORM","operator":"build_through_repetition","difficulty":"MEDIUM","path":"010_trilume/concept.json"}
   ]
 }
