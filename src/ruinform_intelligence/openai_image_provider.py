@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import io
 import os
 
 import httpx
 from openai import AsyncOpenAI, OpenAIError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .render_models import ProviderRender, RenderRequest
 from .render_provider import RenderProviderError
@@ -12,6 +14,7 @@ from .render_provider import RenderProviderError
 DEFAULT_MODEL = "gpt-image-2.5-sunburst"
 DEFAULT_QUALITY = "high"
 SUPPORTED_QUALITY = {"low", "medium", "high", "auto"}
+MAX_REFERENCE_SIDE = 4096
 
 
 def effective_size(aspect_ratio: str) -> str:
@@ -41,6 +44,37 @@ def _full_prompt(request: RenderRequest) -> str:
         + "\n\nUse the supplied source photographs as real material evidence. Preserve recognizable "
         "source identity while creating a single authored post-apocalyptic design object."
     )
+
+
+def _normalize_reference_image(raw: bytes, *, evidence_id: str) -> bytes:
+    """Decode arbitrary browser-uploaded image bytes and emit a plain RGB JPEG for GPT Image."""
+    try:
+        with Image.open(io.BytesIO(raw)) as source:
+            source.seek(0)
+            source.load()
+            image = ImageOps.exif_transpose(source)
+            if image.width < 1 or image.height < 1:
+                raise ValueError("image has invalid dimensions")
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+            if max(image.size) > MAX_REFERENCE_SIDE:
+                image.thumbnail(
+                    (MAX_REFERENCE_SIDE, MAX_REFERENCE_SIDE),
+                    Image.Resampling.LANCZOS,
+                )
+            output = io.BytesIO()
+            image.save(
+                output,
+                format="JPEG",
+                quality=95,
+                optimize=True,
+                progressive=False,
+            )
+            return output.getvalue()
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise RenderProviderError(
+            f"Source image {evidence_id} could not be normalized for GPT Image: {exc}"
+        ) from exc
 
 
 class OpenAIImageProvider:
@@ -78,15 +112,11 @@ class OpenAIImageProvider:
                         f"Could not load source image {reference.evidence_id}: {exc}"
                     ) from exc
 
-                media_type = response.headers.get("content-type", "image/jpeg").split(";", 1)[0].lower()
-                if media_type == "image/jpg":
-                    media_type = "image/jpeg"
-                if media_type not in {"image/jpeg", "image/png", "image/webp"}:
-                    raise RenderProviderError(
-                        f"Unsupported source image type for {reference.evidence_id}: {media_type}"
-                    )
-                extension = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[media_type]
-                files.append((f"source_{index:02d}.{extension}", response.content, media_type))
+                normalized = _normalize_reference_image(
+                    response.content,
+                    evidence_id=reference.evidence_id,
+                )
+                files.append((f"source_{index:02d}.jpg", normalized, "image/jpeg"))
         return files
 
     async def render(self, request: RenderRequest) -> ProviderRender:
