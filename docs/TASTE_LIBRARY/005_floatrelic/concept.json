@@ -1,0 +1,22 @@
+{
+  "id":"005_floatrelic",
+  "title":"FLOATRELIC / MAGNETIC BALANCE",
+  "status":"curated-v0",
+  "primary":"OBJECT / FORM",
+  "secondary":"PHYSICS / INTERACTION",
+  "tertiary":"MATERIAL / DETAIL",
+  "difficulty":"EASY-MEDIUM",
+  "operator":"expose_invisible_force",
+  "operator_label":"Expose invisible force",
+  "core_formula":"cheap repeated parts -> new structural material -> invisible physical force -> impossible-looking balance -> collectible artifact",
+  "core_lesson":"TURN INVISIBLE FORCES INTO VISIBLE DESIGN.",
+  "secondary_lesson":"MULTIPLY THE ORDINARY UNTIL IT BECOMES MATERIAL.",
+  "summary":"Office staples, metal wire, a small magnet and a bead become a desk artifact in which a central relic visually hangs under the top arm.",
+  "learn":["Ask what physical properties the found materials can contribute.","Part of a form can be distance, shadow, tension, magnetic field, balance, light or movement.","ONE CHEAP PART x MANY = NEW MATERIAL.","Contrast strict modular structure with a handmade irregular relic."],
+  "avoid":["exact cross-shaped relic","exact red bead","exact L-shaped stand","staples as mandatory material","exact magnet type","concrete background","rusty bunker aesthetic"],
+  "materials":["staple strips","steel wire","magnet","bead"],
+  "tags":["physics","magnetism","balance","negative-space","repetition","modular-material","collectible-artifact"],
+  "asset_status":"source_mapped_binary_ingest_pending",
+  "asset_manifest":"assets/manifest.json",
+  "source":"user-provided RTF + 3 images: concept 5.rtf"
+}
