@@ -5,7 +5,7 @@ import html
 from fastapi import APIRouter, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from .studio import _page, _require_access, _session, _studio_store
+from . import studio as studio_module
 
 
 router = APIRouter(tags=["studio-controls"])
@@ -18,7 +18,7 @@ def _selected(value: str, expected: str) -> str:
 
 
 def _controls_page(session_id: str) -> str:
-    session = _session(session_id)
+    session = studio_module._session(session_id)
     intent = session.project_state.creative_intent
     direction = html.escape(intent.direction or "", quote=True)
     body = f"""
@@ -46,22 +46,22 @@ def _controls_page(session_id: str) -> str:
 </div>
 <p><a href='/studio/{html.escape(session_id)}'>BACK TO CURRENT PROJECT</a> · <a href='/studio/new'>START A NEW PROJECT</a></p>
 """
-    return _page(body, title="RUINFORM / PROJECT CONTROLS")
+    return studio_module._page(body, title="RUINFORM / PROJECT CONTROLS")
 
 
-@router.get('/studio/{session_id}/controls', response_class=HTMLResponse, dependencies=[Depends(_require_access)])
+@router.get('/studio/{session_id}/controls', response_class=HTMLResponse, dependencies=[Depends(studio_module._require_access)])
 async def studio_controls(session_id: str) -> str:
     return _controls_page(session_id)
 
 
-@router.post('/studio/{session_id}/controls', response_class=HTMLResponse, dependencies=[Depends(_require_access)])
+@router.post('/studio/{session_id}/controls', response_class=HTMLResponse, dependencies=[Depends(studio_module._require_access)])
 async def studio_controls_submit(
     session_id: str,
     creative_direction: str = Form(default=''),
     difficulty_mode: str = Form(default='medium'),
     background_mode: str = Form(default='clean_studio'),
 ):
-    session = _session(session_id)
+    session = studio_module._session(session_id)
     if difficulty_mode not in _DIFFICULTY_MODES:
         difficulty_mode = 'medium'
     if background_mode not in _BACKGROUND_MODES:
@@ -77,7 +77,7 @@ async def studio_controls_submit(
     project_state = session.project_state.model_copy(
         update={'creative_intent': creative_intent}
     )
-    _studio_store().save(
+    studio_module._studio_store().save(
         session.model_copy(
             update={
                 'stage': 'ready_for_futures',
@@ -90,3 +90,32 @@ async def studio_controls_submit(
         )
     )
     return RedirectResponse(url=f'/studio/{session_id}', status_code=303)
+
+
+# Keep the modern Studio self-contained. The old Lab uses a different auth mechanism,
+# so exposing it as the primary Back destination caused repeated browser credential
+# prompts. Patch the Studio presentation at import time without changing the stable
+# route implementation.
+_original_project_controls = studio_module._project_controls
+_original_concept_form = studio_module._concept_form
+
+
+def _project_controls_with_edit(session):
+    return (
+        _original_project_controls(session)
+        + f"<p><a href='/studio/{html.escape(session.session_id)}/controls'>EDIT CREATIVE DIRECTION / DIFFICULTY</a></p>"
+    )
+
+
+def _concept_form_without_legacy_lab(session):
+    body = _original_concept_form(session)
+    old = f"<p><a href='/lab/{html.escape(session.session_id)}'>BACK TO EVIDENCE LAB</a></p>"
+    new = (
+        f"<p><a href='/studio/{html.escape(session.session_id)}/controls'>EDIT PROJECT CONTROLS</a>"
+        " · <a href='/studio/new'>START NEW PROJECT</a></p>"
+    )
+    return body.replace(old, new)
+
+
+studio_module._project_controls = _project_controls_with_edit
+studio_module._concept_form = _concept_form_without_legacy_lab
