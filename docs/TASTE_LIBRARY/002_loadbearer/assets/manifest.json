@@ -1,0 +1,11 @@
+{
+  "card_id":"002_loadbearer",
+  "binary_ingest_status":"pending_repository_or_bucket_ingest",
+  "required_roles":["source_parts","principle_assembly","clean_product","hero_world"],
+  "assets":[
+    {"role":"source_parts","target_path":"assets/01_source_parts.jpg","source_document":"concept 2.pdf","source_page":1,"crop_note":"Parts-layout panel: steel base, reclaimed wood, silhouette, bolts/washers.","status":"source_mapped"},
+    {"role":"principle_assembly","target_path":"assets/02_principle_assembly.jpg","source_document":"concept 2.pdf","source_page":1,"crop_note":"Back view, joint, silhouette, how-it-works and build-sketch panels.","status":"source_mapped"},
+    {"role":"clean_product","target_path":"assets/03_clean_product.jpg","source_document":"concept 2.pdf","source_page":2,"crop_note":"Neutral product shot.","status":"source_mapped"},
+    {"role":"hero_world","target_path":"assets/04_hero_world.jpg","source_document":"concept 2.pdf","source_page":3,"crop_note":"Cinematic workshop / RUINFORM world shot.","status":"source_mapped"}
+  ]
+}
