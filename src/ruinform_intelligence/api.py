@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import html
 import os
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from openai import RateLimitError
 from pydantic import BaseModel, Field, HttpUrl
 
 from .access_control import require_api_access
@@ -19,6 +21,63 @@ app = FastAPI(
     description="Evidence-first intelligence for physical matter.",
     dependencies=[Depends(require_api_access)],
 )
+
+
+def _studio_back_path(path: str) -> str:
+    parts = [part for part in path.split("/") if part]
+    if len(parts) >= 2 and parts[0] == "studio":
+        return f"/studio/{parts[1]}"
+    return "/studio/new"
+
+
+def _openai_rate_limit_response(request: Request, exc: RateLimitError):
+    body = getattr(exc, "body", None)
+    error_code = body.get("code") if isinstance(body, dict) else None
+    detail = str(exc)
+    credits_exhausted = (
+        error_code == "credit_balance_exhausted"
+        or "no credits remaining" in detail.lower()
+        or "insufficient_quota" in detail.lower()
+    )
+
+    if credits_exhausted:
+        title = "OPENAI API CREDITS EXHAUSTED."
+        message = (
+            "RUINFORM reached OpenAI successfully, but the API account has no credits remaining. "
+            "Add API credits in OpenAI Platform Billing, then retry this step. Your Studio project, "
+            "controls, uploaded source photos, and session are preserved."
+        )
+        status_code = 402
+    else:
+        title = "OPENAI API RATE LIMIT."
+        message = (
+            "OpenAI is temporarily rate-limiting this request. Wait briefly and retry. "
+            "Your RUINFORM project session is preserved."
+        )
+        status_code = 429
+
+    if request.url.path.startswith("/studio/"):
+        back = _studio_back_path(request.url.path)
+        page = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RUINFORM / API BLOCKED</title>
+<style>
+:root{{color-scheme:dark}}*{{box-sizing:border-box}}body{{margin:0;background:#080807;color:#eee8dd;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}}main{{max-width:900px;margin:0 auto;padding:72px 22px}}h1{{font-size:clamp(42px,8vw,96px);line-height:.88;letter-spacing:-.06em;margin:0 0 28px}}p{{line-height:1.6;color:#b8b0a4;max-width:780px}}.k{{font-size:12px;letter-spacing:.2em;color:#8f887b;margin-bottom:16px}}.panel{{border:1px solid #3a352e;background:#10100e;padding:20px;margin:28px 0}}a{{color:#eee8dd}}.warn{{color:#d5ad74}}
+</style></head><body><main>
+<div class="k">RUINFORM / OPENAI API</div>
+<h1>{html.escape(title)}</h1>
+<div class="panel"><p class="warn">{html.escape(message)}</p></div>
+<p><a href="{html.escape(back, quote=True)}">BACK TO PROJECT</a></p>
+</main></body></html>"""
+        return HTMLResponse(page, status_code=status_code)
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "detail": message,
+            "code": "openai_api_credits_exhausted" if credits_exhausted else "openai_api_rate_limited",
+        },
+    )
 
 
 @app.middleware("http")
@@ -39,7 +98,10 @@ async def bridge_legacy_lab_navigation(request: Request, call_next):
         suffix = path[len("/lab/"):]
         if suffix and "/" not in suffix:
             return RedirectResponse(url=f"/studio/{suffix}", status_code=303)
-    return await call_next(request)
+    try:
+        return await call_next(request)
+    except RateLimitError as exc:
+        return _openai_rate_limit_response(request, exc)
 
 
 class MaterialEyeRequest(BaseModel):
