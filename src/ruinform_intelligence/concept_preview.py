@@ -117,6 +117,25 @@ def _creative_direction(state: ProjectState, user_intent: str | None) -> str:
     return stored or extra or "OPEN EXPLORATION — surprise the user within RUINFORM rules."
 
 
+def _source_participation_contract(state: ProjectState) -> str:
+    count = len(state.materials)
+    if count <= 1:
+        return (
+            "There is one source item. It must remain the unmistakable origin of the concept and carry the primary design gesture."
+        )
+    if count <= 4:
+        return (
+            f"There are {count} source items. Each concept should normally integrate at least two of them, and at least two of the four concepts "
+            "should integrate ALL source items unless Creative Direction explicitly excludes one. Every used source needs a real structural, functional, "
+            "material, spatial, or narrative role. Do not include a source as token decoration. If a concept intentionally omits a source because using it "
+            "would weaken the idea, state that decision briefly in unresolved_dependencies."
+        )
+    return (
+        f"There are {count} source items. Do not force all of them into every concept. Each concept should use a coherent subset of at least three when possible, "
+        "and the batch as a whole should explore the full source set. Every selected source must perform a real role rather than act as decoration."
+    )
+
+
 async def generate_concept_preview(
     *,
     state: ProjectState,
@@ -145,6 +164,8 @@ async def generate_concept_preview(
                 f"Project state: {compact_state_json(state)}\n\n"
                 "MATERIAL ID CONTRACT — material_uses may reference ONLY these exact IDs; never invent or rewrite an ID:\n"
                 f"{material_contract}\n\n"
+                "SOURCE PARTICIPATION CONTRACT:\n"
+                f"{_source_participation_contract(state)}\n\n"
                 "CREATIVE DIRECTION CONTRACT:\n"
                 f"{_creative_direction(state, user_intent)}\n"
                 "Treat explicit constraints such as 'no electronics', 'keep intact', 'wall object', or 'useful' as strong project guidance. "
@@ -153,6 +174,11 @@ async def generate_concept_preview(
                 f"{_difficulty_contract(intent.difficulty_mode)}\n\n"
                 f"BACKGROUND MODE: {intent.background_mode}. This is a later presentation choice. DO NOT let the background mode determine the object idea. "
                 "Invent the object first; the same concept must survive on a clean neutral background.\n\n"
+                "COLLECTIBLE AUTHORSHIP TEST:\n"
+                "The concept must still feel deliberate and valuable if photographed alone on a clean white/grey background with no apocalypse scenery. "
+                "Authorship should come from geometry, negative space, tension, repetition, balance, material contrast, or an unusually clear functional relationship — "
+                "not from grime, signage, random hardware, or cinematic background. Reject school-project logic where one object is merely taped, clipped, or bracketed next to another. "
+                "Supporting hardware is allowed only when it enables the source-driven idea and must remain visually subordinate.\n\n"
                 "The product goal is not generic upcycling. Create desirable post-consumer artifacts with visible source provenance, "
                 "strong silhouette, one authored transformation gesture, and believable material logic. "
                 "Use the Taste Library as a grammar of design moves, never as a catalogue of objects to reproduce."
@@ -204,33 +230,38 @@ async def generate_concept_preview(
         if candidate.candidate_id in seen_ids:
             raise ConceptPreviewError("Design Brain returned duplicate candidate IDs")
         seen_ids.add(candidate.candidate_id)
-        unknown_ids = {use.material_item_id for use in candidate.material_uses} - material_id_set
+        used_ids = {use.material_item_id for use in candidate.material_uses}
+        unknown_ids = used_ids - material_id_set
         if unknown_ids:
             raise ConceptPreviewError(
                 "Design Brain referenced unknown material IDs: " + ", ".join(sorted(unknown_ids))
             )
+        coverage_ratio = len(used_ids) / max(1, len(material_id_set))
+        material_fit_score = round(100 * coverage_ratio)
         review = FeasibilityReview(
             candidate_id=candidate.candidate_id,
             status="pass",
             feasibility_score=item.buildability_hint,
-            material_fit_score=85,
+            material_fit_score=material_fit_score,
             buildability_score=item.buildability_hint,
             originality_score=item.originality_hint,
             artistic_impact_score=item.artistic_impact_hint,
             usefulness_score=item.usefulness_hint,
             value_potential_score=item.value_hint,
             reasons=[
-                "Vision-first Design Brain preview using original source photographs, persistent Creative Intent, RUINFORM Skill/Style rules, and Taste Library grammar; detailed feasibility is intentionally deferred until after visual selection."
+                "Vision-first Design Brain preview using original source photographs, persistent Creative Intent, RUINFORM Skill/Style rules, and Taste Library grammar; detailed feasibility is intentionally deferred until after visual selection.",
+                f"Source participation: {len(used_ids)}/{len(material_id_set)} identified source items have an explicit concept role.",
             ],
             required_changes=[],
             unresolved_dependencies=list(candidate.unresolved_dependencies),
         )
         rank = round(
-            0.20 * item.buildability_hint
-            + 0.30 * item.originality_hint
-            + 0.30 * item.artistic_impact_hint
+            0.15 * item.buildability_hint
+            + 0.25 * item.originality_hint
+            + 0.25 * item.artistic_impact_hint
             + 0.10 * item.usefulness_hint
-            + 0.10 * item.value_hint,
+            + 0.10 * item.value_hint
+            + 0.15 * material_fit_score,
             2,
         )
         reviewed.append(
