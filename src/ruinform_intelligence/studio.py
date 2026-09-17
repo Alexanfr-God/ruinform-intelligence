@@ -26,6 +26,7 @@ security = HTTPBasic(auto_error=False)
 _store: SqliteRunStore | None = None
 _STUDIO_COOKIE = "ruinform_studio_session"
 _STUDIO_COOKIE_TTL = 7 * 24 * 60 * 60
+_BACKGROUND_MODES = {"clean_studio", "ruinform_world"}
 
 
 def _auth_config() -> tuple[str, str]:
@@ -67,20 +68,17 @@ def _require_access(
     credentials: HTTPBasicCredentials | None = Depends(security),
 ) -> None:
     expected_user, expected_password = _auth_config()
-
     if _cookie_is_valid(
         request.cookies.get(_STUDIO_COOKIE),
         username=expected_user,
         password=expected_password,
     ):
         return
-
     if credentials and (
         secrets.compare_digest(credentials.username, expected_user)
         and secrets.compare_digest(credentials.password, expected_password)
     ):
         return
-
     next_path = quote(request.url.path, safe="/")
     raise HTTPException(
         status_code=status.HTTP_303_SEE_OTHER,
@@ -125,7 +123,6 @@ async def studio_login_submit(
         and secrets.compare_digest(password, expected_password)
     ):
         return HTMLResponse(_login_page(_safe_next(next), error="Invalid Studio login or password."), status_code=401)
-
     destination = _safe_next(next)
     expires = int(time.time()) + _STUDIO_COOKIE_TTL
     response = RedirectResponse(url=destination, status_code=status.HTTP_303_SEE_OTHER)
@@ -174,12 +171,24 @@ def _materials_summary(session: TransformationSession) -> str:
     return "".join(rows) or "<span class='muted'>No material labels available</span>"
 
 
+def _project_controls(session: TransformationSession) -> str:
+    intent = session.project_state.creative_intent
+    direction = html.escape(intent.direction or "RUINFORM decides")
+    return (
+        "<div class='panel'><div class='k'>PROJECT CONTROLS</div>"
+        f"<span class='badge'>DIFFICULTY: {html.escape(intent.difficulty_mode.upper())}</span>"
+        f"<span class='badge'>BACKGROUND: {html.escape(intent.background_mode.upper())}</span>"
+        f"<p class='muted'><strong>Creative Direction:</strong> {direction}</p></div>"
+    )
+
+
 def _concept_form(session: TransformationSession) -> str:
     return f"""
 <div class='k'>RUINFORM / STAGED INTELLIGENCE</div>
 <h1>IDEA FIRST.<br>BUILD LATER.</h1>
 <p>We now spend intelligence in the order a human actually needs it: first decide whether the idea is worth pursuing, then render it, and only after you approve the visual do we spend tokens on detailed build logic.</p>
 <div class='panel'><div class='k'>SOURCE MATTER</div>{_materials_summary(session)}</div>
+{_project_controls(session)}
 <form method='post' action='/studio/{html.escape(session.session_id)}/concepts' data-busy data-busy-title='FINDING 4 POSSIBLE FUTURES.'>
 <label>CREATIVE MODE</label>
 <select name='mode'>
@@ -188,8 +197,8 @@ def _concept_form(session: TransformationSession) -> str:
 <option value='buildable'>BUILDABLE — simplest physical transformation</option>
 <option value='functional'>FUNCTIONAL — useful object first</option>
 </select>
-<label>WHAT SHOULD IT BECOME? — optional</label>
-<textarea name='user_intent' rows='3' placeholder='Leave blank and let THE MAKER explore'></textarea>
+<label>SESSION ADJUSTMENT — optional</label>
+<textarea name='user_intent' rows='3' placeholder='Leave blank to keep the project Creative Direction. Or add a one-batch adjustment, e.g. keep the cup intact.'></textarea>
 <p class='warning'>Concept Preview allows unverified scale-to-fit assumptions. It is inspiration, not engineering or safety approval. Exact verification happens only if you choose MAKE IT REAL.</p>
 <button type='submit'>GENERATE 4 CONCEPTS</button>
 </form>
@@ -197,10 +206,24 @@ def _concept_form(session: TransformationSession) -> str:
 """
 
 
+def _background_select(current: str) -> str:
+    clean = " selected" if current == "clean_studio" else ""
+    world = " selected" if current == "ruinform_world" else ""
+    return (
+        "<label>BACKGROUND FOR THIS RENDER</label>"
+        "<select name='background_mode'>"
+        f"<option value='clean_studio'{clean}>CLEAN STUDIO — object first</option>"
+        f"<option value='ruinform_world'{world}>RUINFORM WORLD — post-apocalyptic hero setting</option>"
+        "</select>"
+        "<p class='muted'>You can render the SAME concept in both modes for a true A/B comparison.</p>"
+    )
+
+
 def _concepts_page(session: TransformationSession) -> str:
     if session.futures is None or not session.futures.selected_futures:
         return _concept_form(session)
     cards: list[str] = []
+    current_background = session.project_state.creative_intent.background_mode
     for future in session.futures.selected_futures:
         c = future.candidate
         r = future.review
@@ -218,12 +241,14 @@ def _concepts_page(session: TransformationSession) -> str:
 <p><strong>Possible additions:</strong> {html.escape(added)}</p>
 <p class='muted'><strong>Still unverified:</strong> {html.escape(unresolved)}</p>
 <form method='post' action='/studio/{html.escape(session.session_id)}/render/{html.escape(c.candidate_id)}' data-busy data-busy-title='RENDERING THE SELECTED FUTURE.'>
+{_background_select(current_background)}
 <button type='submit'>RENDER THIS CONCEPT</button>
 </form>
 </div>""")
     return f"""
 <div class='k'>CONCEPT ARCHITECT / FAST PREVIEW</div><h1>I SEE 4<br>FUTURES.</h1>
 <p>No detailed engineering has been generated yet. Pick the idea first. That is the token-efficient path.</p>
+{_project_controls(session)}
 <div class='grid'>{''.join(cards)}</div>
 <div class='rule'></div><p><a href='/studio/{html.escape(session.session_id)}'>GENERATE A DIFFERENT SET</a></p>
 """
@@ -240,12 +265,13 @@ def _render_page(session: TransformationSession) -> str:
     title = future.candidate.name if future else "Selected future"
     if result.status != "pass" or not image:
         return f"""<div class='k'>VISUAL DIRECTOR / RESULT</div><h1>RENDER<br>NEEDS WORK.</h1><p>{html.escape(result.failure_reason or 'The render did not pass the visual trust gate.')}</p><p><a href='/studio/{html.escape(session.session_id)}/concepts'>BACK TO CONCEPTS</a></p>"""
+    background_label = session.project_state.creative_intent.background_mode.replace('_', ' ').upper()
     return f"""
-<div class='k'>VISUAL DIRECTOR / APPROVED IMAGE</div><h1>THIS IS WHAT<br>IT COULD BECOME.</h1>
+<div class='k'>VISUAL DIRECTOR / APPROVED IMAGE / {html.escape(background_label)}</div><h1>THIS IS WHAT<br>IT COULD BECOME.</h1>
 <h2>{html.escape(title)}</h2><img class='hero' src='{html.escape(image, quote=True)}' alt='RUINFORM generated future'/>
 <p class='warning'>This is still a concept visualization. Physical feasibility has not yet been deeply verified.</p>
 <form method='post' action='/studio/{html.escape(session.session_id)}/build' data-busy data-busy-title='TURNING THE VISUAL INTO A BUILD PLAN.'><button type='submit'>MAKE IT REAL</button></form>
-<form method='get' action='/studio/{html.escape(session.session_id)}/concepts'><button class='secondary' type='submit'>CHOOSE ANOTHER CONCEPT</button></form>
+<form method='get' action='/studio/{html.escape(session.session_id)}/concepts'><button class='secondary' type='submit'>BACK TO CONCEPTS / TRY OTHER BACKGROUND</button></form>
 """
 
 
@@ -331,8 +357,22 @@ async def studio_concepts_get(session_id: str) -> str:
 
 
 @router.post('/studio/{session_id}/render/{candidate_id}', response_class=HTMLResponse, dependencies=[Depends(_require_access)])
-async def studio_render(session_id: str, candidate_id: str) -> str:
+async def studio_render(
+    session_id: str,
+    candidate_id: str,
+    background_mode: str = Form(''),
+) -> str:
     session = _session(session_id)
+    if background_mode in _BACKGROUND_MODES and background_mode != session.project_state.creative_intent.background_mode:
+        creative_intent = session.project_state.creative_intent.model_copy(
+            update={'background_mode': background_mode}
+        )
+        project_state = session.project_state.model_copy(
+            update={'creative_intent': creative_intent}
+        )
+        session = _studio_store().save(
+            session.model_copy(update={'project_state': project_state, 'render_result': None})
+        )
     try:
         provider = create_higgsfield_provider()
         session = await render_session_candidate(
