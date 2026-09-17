@@ -1,0 +1,12 @@
+{
+  "card_id": "010_trilume",
+  "asset_status": "source_mapped_binary_ingest_pending",
+  "roles": {
+    "01_source_parts": "Mapped to user-provided RUINFORM build-guide image for concept 10 (reclaimed beam, three cans, bulbs, holders, cable, finish).",
+    "02_principle_assembly": "Mapped to user-provided RUINFORM build-guide image for concept 10 (prepare beam, drill openings, prepare cans, install holders/wiring, assemble and suspend).",
+    "03_clean_product": "Mapped to user-provided neutral product shot image for concept 10.",
+    "04_hero_world": "Mapped to user-provided interior/gallery hero shot image for concept 10."
+  },
+  "notes": "Binary image ingest into the canonical Taste Library bucket is pending. This manifest defines the required four-role mapping. Electrical safety is flagged in concept.json.",
+  "provenance": "User conversation upload, concept 10"
+}
