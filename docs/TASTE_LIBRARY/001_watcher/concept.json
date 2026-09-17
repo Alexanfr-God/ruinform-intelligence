@@ -1,0 +1,21 @@
+{
+  "id":"001_watcher",
+  "title":"WATCHER / KINETIC PORTRAIT",
+  "status":"curated-v0",
+  "primary":"OBJECT / FORM",
+  "secondary":"MATERIAL / DETAIL",
+  "tertiary":"WORLD / LIGHT",
+  "difficulty":"not_explicitly_specified",
+  "operator":"mutate_behavior",
+  "operator_label":"Mutate behavior",
+  "core_formula":"ordinary / discarded components -> intervention -> behavior -> collectible object",
+  "core_lesson":"DON'T DECORATE THE FOUND OBJECT - MUTATE ITS PURPOSE.",
+  "summary":"A rough painted portrait becomes a physical interactive artifact. A hidden ESP32 / sensor / servo mechanism makes the eyes react to a person.",
+  "learn":["Give static found objects unexpected behavior.","Behavior can be the design, not an extra feature.","Exposed mechanics can become part of the aesthetic."],
+  "avoid":["exact face or giant eyes","radiation signs","gas mask","bunker setting","brown/orange color grade"],
+  "materials":["rough hand painting","wood","exposed electronics","servo","wires","imperfect edges"],
+  "tags":["behavior","kinetic","interactive","electronics","collectible","exposed-mechanism"],
+  "asset_status":"source_mapped_binary_ingest_pending",
+  "asset_manifest":"assets/manifest.json",
+  "source":"user-provided PDF: Картина с движущимися глазами .pdf"
+}
