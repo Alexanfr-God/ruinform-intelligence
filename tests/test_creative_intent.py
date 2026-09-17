@@ -1,5 +1,10 @@
-from ruinform_intelligence.concept_preview import _creative_direction, _difficulty_contract
-from ruinform_intelligence.models import CreativeIntent, ProjectState
+from ruinform_intelligence.concept_preview import (
+    _creative_direction,
+    _difficulty_contract,
+    _source_participation_contract,
+)
+from ruinform_intelligence.models import CreativeIntent, MaterialItem, ProjectState
+from ruinform_intelligence.render_director import _supporting_parts_contract
 from ruinform_intelligence.render_prompt import _background_render_instruction, _difficulty_render_instruction
 
 
@@ -29,6 +34,29 @@ def test_difficulty_contracts_are_materially_different() -> None:
     assert "0-2" in _difficulty_contract("easy")
     assert "0-4" in _difficulty_contract("medium")
     assert "radical geometry" in _difficulty_contract("wild")
+
+
+def test_source_participation_contract_pushes_small_sets_toward_full_integration() -> None:
+    state = ProjectState(
+        materials=[
+            MaterialItem(display_name="bottle"),
+            MaterialItem(display_name="pencil"),
+            MaterialItem(display_name="LED strip"),
+        ]
+    )
+    text = _source_participation_contract(state)
+    assert "at least two" in text
+    assert "ALL source items" in text
+    assert "token decoration" in text
+
+
+def test_visual_director_support_budget_tracks_difficulty() -> None:
+    easy = ProjectState(creative_intent=CreativeIntent(difficulty_mode="easy"))
+    medium = ProjectState(creative_intent=CreativeIntent(difficulty_mode="medium"))
+    wild = ProjectState(creative_intent=CreativeIntent(difficulty_mode="wild"))
+    assert "0-2" in _supporting_parts_contract(easy)
+    assert "0-4" in _supporting_parts_contract(medium)
+    assert "specialist structure" in _supporting_parts_contract(wild)
 
 
 def test_clean_studio_background_contract_keeps_environment_neutral() -> None:
