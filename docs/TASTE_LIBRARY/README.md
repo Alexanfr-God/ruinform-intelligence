@@ -14,6 +14,10 @@ Every card must teach a **transferable design operator**. The visual world is se
 | `004_trashlight` | Reassign roles | Do not upgrade the material; give the waste a new role. |
 | `005_floatrelic` | Expose invisible force | Make a physical phenomenon part of the visible design. |
 | `006_swinglight` | Turn function into character | Let functional parts become anatomy and micro-story. |
+| `007_foundling` | Discover latent form | Recognize the hidden form in the material before trying to fabricate it. |
+| `008_coinpour` | Freeze the action | Capture a familiar action and conceal the support inside the story. |
+| `009_heartwood` | Remove to reveal | Remove part of the material to open space for a new function. |
+| `010_trilume` | Build through repetition | Turn repeated weak elements into one strong modular system. |
 
 See `index.json` for machine-readable retrieval metadata.
 
@@ -59,6 +63,7 @@ Useful optional fields for richer retrieval and critique:
 
 - `emotion_tags`
 - `failure_modes`
+- safety flags such as `electrical_safety_required`
 
 ## Retrieval rule
 
@@ -84,7 +89,10 @@ RUINFORM is:
 - role/function/behavior transformation
 - surprising but legible physical logic
 - contemporary collectible value
+- material observation
+- minimum-effective intervention
+- system thinking when repetition creates new form
 
 ## MVP scope
 
-Keep the library intentionally small. The first target is 6-10 excellent cards with genuinely different design operators, not 50 visually similar references.
+The first ten cards form the initial Design Grammar. Future cards should be added only when they contribute a genuinely new operator or significantly deepen an existing one.
