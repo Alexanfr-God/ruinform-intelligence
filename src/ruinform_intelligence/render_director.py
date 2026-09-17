@@ -66,6 +66,19 @@ def select_render_mode(future: ReviewedFuture) -> RenderMode:
     return "design_product"
 
 
+def _background_contract(state: ProjectState) -> str:
+    if state.creative_intent.background_mode == "ruinform_world":
+        return (
+            "RUINFORM WORLD: keep the designed object as the undisputed hero, but place it in a restrained post-apocalyptic "
+            "salvage-luxury environment: reclaimed workshop, recovery gallery, weathered architecture, honest dust/wear and cinematic light. "
+            "No generic cyberpunk RGB, costume props, fake warning signs, random weapons, or scenery that carries the idea instead of the object."
+        )
+    return (
+        "CLEAN STUDIO: neutral contemporary studio/gallery presentation with minimal visual noise. The object itself must carry the idea. "
+        "No post-apocalyptic scenery, decorative storytelling props, ruins, smoke, warning signage or environmental spectacle."
+    )
+
+
 def fallback_visual_direction(
     *,
     state: ProjectState,
@@ -77,6 +90,11 @@ def fallback_visual_direction(
     hero_id = uses[0].material_item_id if uses else (state.materials[0].item_id if state.materials else "unknown")
     hero_label = material_by_id.get(hero_id).display_name if hero_id in material_by_id else hero_id
     secondary = [use.material_item_id for use in uses[1:]]
+    environment = (
+        "Restrained RUINFORM post-apocalyptic salvage-luxury workshop/gallery; object remains dominant, no generic cyberpunk props."
+        if state.creative_intent.background_mode == "ruinform_world"
+        else "Minimal neutral contemporary studio/gallery with no decorative storytelling props."
+    )
     return VisualDirection(
         render_mode=render_mode,
         hero_material_id=hero_id,
@@ -95,7 +113,7 @@ def fallback_visual_direction(
         composition="Single hero object, isolated from clutter, centered or deliberately asymmetric.",
         camera="Three-quarter editorial object view at object height, no wide-angle distortion.",
         lighting="Sculptural editorial lighting that reveals material contrast, depth, folds, glass and surface transitions.",
-        environment="Minimal gallery-like setting with no decorative storytelling props.",
+        environment=environment,
         authorship_cues=[
             "One surprising but coherent material gesture.",
             "A silhouette that could be recognized from across the room.",
@@ -157,19 +175,27 @@ async def generate_visual_direction(
             f"observed: {'; '.join(observations) or 'no extra observations'}"
         )
 
+    intent = state.creative_intent
     content: list[dict[str, object]] = [
         {
             "type": "input_text",
             "text": (
                 "Direct the next RUINFORM image generation at HIGH TASTE.\n\n"
                 f"RENDER MODE: {render_mode}\n\n"
+                f"PERSISTENT CREATIVE DIRECTION: {intent.direction or 'open exploration'}\n"
+                f"DIFFICULTY MODE: {intent.difficulty_mode}\n"
+                f"BACKGROUND CONTRACT: {_background_contract(state)}\n\n"
+                "Creative Direction guides authorship and constraints, but must not erase source identity or turn this into generic text-to-image. "
+                "Background Mode controls presentation only: do not redesign the object to fit scenery.\n\n"
                 f"SOURCE MATERIALS:\n{chr(10).join(material_lines)}\n\n"
                 f"PROJECT STATE: {compact_state_json(state)}\n\n"
                 f"SELECTED CANDIDATE: {future.candidate.model_dump_json()}\n\n"
                 f"FEASIBILITY REVIEW: {future.review.model_dump_json()}\n\n"
                 "The previous failure mode to fight is a clean but generic render: source objects stacked, sleeved, "
                 "or evenly wrapped with light. Choose one hero, one conceptual tension and one authored signature gesture. "
-                "Reject the most obvious decorative solution even if it is technically valid."
+                "Reject the most obvious decorative solution even if it is technically valid. "
+                "Also fight the opposite failure: do not bury a simple source-driven idea under a large inventory of invented hardware. "
+                "Supporting parts should earn their place and remain visually subordinate to the user's source objects."
             ),
         }
     ]
