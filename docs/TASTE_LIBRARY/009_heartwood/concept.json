@@ -1,0 +1,46 @@
+{
+  "id": "009_heartwood",
+  "title": "HEARTWOOD / REVEAL THE INNER VALUE",
+  "status": "curated-v0",
+  "primary": "MATERIAL / FORM",
+  "secondary": "LIGHT / TRANSFORMATION",
+  "tertiary": "OBJECT / NARRATIVE",
+  "difficulty": "MEDIUM",
+  "operator": "remove_to_reveal",
+  "operator_label": "Remove to reveal",
+  "core_formula": "found mass -> identify hidden volume -> remove material -> insert function into the void -> preserve provenance -> collectible object",
+  "core_lesson": "REMOVE TO REVEAL.",
+  "secondary_lesson": "LET THE MATERIAL FRAME THE FUNCTION.",
+  "summary": "A found wood mass is opened from within so a light source can occupy the revealed void, preserving provenance while transforming the object into a collectible lamp.",
+  "learn": [
+    "Ask what is inside the material and what can be opened, carved or freed.",
+    "Treat empty space as active design material.",
+    "Place function inside the found object instead of beside it.",
+    "Removing material can be more powerful than adding decoration.",
+    "Preserve provenance rather than erasing the past.",
+    "Function can help reveal the beauty of material.",
+    "Subtractive transformation can create collectible value from familiar mass."
+  ],
+  "avoid": [
+    "tree stumps as a default answer",
+    "Edison bulbs as the only light source",
+    "one vertical slit as a fixed composition",
+    "dark bark plus amber glow as mandatory styling",
+    "wooden bases as a permanent requirement",
+    "rustic lamps as the only direction"
+  ],
+  "materials": ["found wood mass", "reclaimed wooden base", "bulb or light source", "dark socket", "cable"],
+  "emotion_tags": ["warm", "revealing", "grounded", "atmospheric", "collectible"],
+  "failure_modes": [
+    "the wood is over-processed and loses provenance",
+    "the cavity feels generic rather than discovered from the material",
+    "the lamp looks like ordinary rustic decor instead of a considered collectible",
+    "the light source feels glued on rather than integrated into the void",
+    "too much refinement erases the contrast between outer bark and inner light",
+    "the base and wiring distract from the core subtractive transformation"
+  ],
+  "tags": ["subtractive-transformation", "revealed-void", "inner-light", "found-wood", "preserve-provenance", "collectible-light", "material-reveal", "embedded-function"],
+  "asset_status": "source_mapped_binary_ingest_pending",
+  "asset_manifest": "assets/manifest.json",
+  "source": "user-provided concept text + 3 images for CONCEPT 09"
+}
