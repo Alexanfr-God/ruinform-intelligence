@@ -1,87 +1,84 @@
-# RUINFORM TASTE LIBRARY — v0
+# RUINFORM TASTE LIBRARY - v0.1
 
-This folder is the future visual reference library for RUINFORM.
+This is not a moodboard. It is a small teaching set for the RUINFORM Design Brain.
 
-It is intentionally small at first. Do not fill it with random inspiration. Every reference must teach the Design Brain a specific taste rule.
+Every card must teach a **transferable design operator**. The visual world is secondary to the object logic.
 
-## MVP rule
+## Current design grammar
 
-Start with only **6–10 strong references**. That is enough to test whether visual few-shot calibration improves consistency.
+| Card | Operator | Core lesson |
+|---|---|---|
+| `001_watcher` | Mutate behavior | Make a found object do something it normally never does. |
+| `002_loadbearer` | Turn force into story | Make structural necessity visible as narrative. |
+| `003_wastelight` | Recompose simply | Strong form can come from a minimal recombination of ordinary parts. |
+| `004_trashlight` | Reassign roles | Do not upgrade the material; give the waste a new role. |
+| `005_floatrelic` | Expose invisible force | Make a physical phenomenon part of the visible design. |
 
-Do not wait for 50 images before testing.
+See `index.json` for machine-readable retrieval metadata.
 
-## First buckets
+## Required folder format
 
 ```text
-lighting/
-wall-art/
-sculpture/
-furniture/
-small-objects/
-materials/
-backgrounds/
-post-apocalyptic-world/
+NNN_slug/
+  concept.md
+  concept.json
+  assets/
+    manifest.json
+    01_source_parts.jpg
+    02_principle_assembly.jpg
+    03_clean_product.jpg
+    04_hero_world.jpg
 ```
 
-## Reference metadata
+The reusable starter files live in `_TEMPLATE/`.
 
-Each approved reference should have metadata shaped roughly like:
+## Four required visual roles
 
-```json
-{
-  "id": "lighting_001",
-  "category": "lighting",
-  "source": "user-provided-or-licensed-reference",
-  "why_good": [
-    "strong single silhouette",
-    "source material remains recognizable",
-    "lighting reveals construction rather than becoming decoration",
-    "looks collectible but physically plausible"
-  ],
-  "formal_traits": [
-    "asymmetric",
-    "negative-space",
-    "soft-vs-rigid"
-  ],
-  "world_traits": [
-    "salvage-luxury",
-    "post-consumer-artifact"
-  ],
-  "avoid_copying": [
-    "exact geometry",
-    "branding",
-    "artist-specific signature details"
-  ]
-}
-```
+1. **source_parts** - the actual parts, source matter or closest available evidence of the components.
+2. **principle_assembly** - how the transformation, physical principle or intervention works.
+3. **clean_product** - object-first view with the least possible world/style interference.
+4. **hero_world** - the object placed in a cinematic RUINFORM context.
 
-## Selection rule
+The clean-product image matters because it prevents the model from confusing RUINFORM with one background, color grade or bunker aesthetic.
 
-At generation time, retrieve only 2–4 references that match the current object category/material problem.
+## Card rule
 
-Do not feed the entire library to the model.
+A card must include:
 
-## What belongs here
+- one design operator
+- one core transferable lesson
+- what the Brain should learn
+- what the Brain must **not** copy
+- material language
+- retrieval tags
+- provenance
+- a four-role visual manifest
 
-Good references show at least two of these:
+## Retrieval rule
 
-- surprising transformation of ordinary matter
-- strong silhouette
+At generation time, retrieve only **2-4** cards or visual layers that match the current material/problem.
+
+Do not feed the whole library to the model.
+
+## Important distinction
+
+RUINFORM is **not**:
+
+- rust everywhere
+- orange bunker lighting
+- radiation symbols
+- gas masks
+- generic cyberpunk
+- a specific artist's style
+
+RUINFORM is:
+
+- found matter
 - visible provenance
-- buildable material logic
-- excellent material photography
-- post-consumer / salvage character without generic cyberpunk styling
-- meaningful tension between materials
-- contemporary collectible design quality
+- role/function/behavior transformation
+- surprising but legible physical logic
+- contemporary collectible value
 
-## What does NOT belong here
+## MVP scope
 
-- images saved only because they look cool
-- generic Midjourney cyberpunk
-- pure moodboards with no object logic
-- polished product shots with no reclaimed-material relevance
-- copies of one artist/style repeated many times
-
-## Current status
-
-Structure ready. First 6–10 references still need to be curated with the user.
+Keep the library intentionally small. The first target is 6-10 excellent cards with genuinely different design operators, not 50 visually similar references.
