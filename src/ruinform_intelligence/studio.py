@@ -243,7 +243,7 @@ def _render_page(session: TransformationSession) -> str:
     return f"""
 <div class='k'>VISUAL DIRECTOR / APPROVED IMAGE</div><h1>THIS IS WHAT<br>IT COULD BECOME.</h1>
 <h2>{html.escape(title)}</h2><img class='hero' src='{html.escape(image, quote=True)}' alt='RUINFORM generated future'/>
-<p class='warning'>This is still a concept visualization. Physical feasibility has not yet been deeply verified.</p>
+<p class='warning'>This is still a concept visualization. Physical feasibility has not yet been deeply verified. MAKE IT REAL will use this exact approved image as the visual target for the build plan.</p>
 <form method='post' action='/studio/{html.escape(session.session_id)}/build' data-busy data-busy-title='TURNING THE VISUAL INTO A BUILD PLAN.'><button type='submit'>MAKE IT REAL</button></form>
 <form method='get' action='/studio/{html.escape(session.session_id)}/concepts'><button class='secondary' type='submit'>CHOOSE ANOTHER CONCEPT</button></form>
 """
@@ -255,18 +255,24 @@ def _build_page(session: TransformationSession) -> str:
         return _render_page(session)
     additions = "".join(f"<li>{html.escape(x)}</li>" for x in plan.added_materials) or "<li>none declared</li>"
     tools = "".join(f"<li>{html.escape(x)}</li>" for x in plan.tools) or "<li>none declared</li>"
+    preparation = "".join(f"<li>{html.escape(x)}</li>" for x in plan.preparation_checks) or "<li>none declared</li>"
+    final_checks = "".join(f"<li>{html.escape(x)}</li>" for x in plan.final_verification) or "<li>none declared</li>"
     steps = []
     for step in plan.steps:
         stop = " · ".join(step.stop_if) if step.stop_if else "none"
         steps.append(f"""<div class='step'><div class='k'>STEP {step.step_number}</div><h2>{html.escape(step.title)}</h2><p>{html.escape(step.action)}</p><p><strong>Verify:</strong> {html.escape(step.verify)}</p><p class='muted'><strong>Stop if:</strong> {html.escape(stop)}</p></div>""")
     gates = "".join(f"<li>{html.escape(x)}</li>" for x in plan.safety_gates) or "<li>no additional gate declared</li>"
     unresolved = "".join(f"<li>{html.escape(x)}</li>" for x in plan.unresolved_before_use) or "<li>none declared</li>"
+    time_label = f"{plan.estimated_time_minutes} min" if plan.estimated_time_minutes is not None else "not estimated"
     return f"""
 <div class='k'>BUILD MASTER / POST-PRODUCTION</div><h1>MAKE IT<br>REAL.</h1>
 <h2>{html.escape(plan.title)}</h2><p>{html.escape(plan.result_description)}</p>
+<p class='scores'>DIFFICULTY {html.escape(plan.difficulty.upper())} / ESTIMATED TIME {html.escape(time_label)}</p>
 <div class='grid'><div class='panel'><div class='k'>ADDED MATERIALS</div><ul>{additions}</ul></div><div class='panel'><div class='k'>TOOLS</div><ul>{tools}</ul></div></div>
+<div class='panel'><div class='k'>BEFORE YOU START</div><ul>{preparation}</ul></div>
 <div class='rule'></div>{''.join(steps)}
 <div class='grid'><div class='panel'><div class='k'>SAFETY GATES</div><ul>{gates}</ul></div><div class='panel'><div class='k'>VERIFY BEFORE REAL USE</div><ul>{unresolved}</ul></div></div>
+<div class='panel'><div class='k'>FINAL VERIFICATION</div><ul>{final_checks}</ul></div>
 <p class='warning'>{html.escape(plan.maker_note)}</p>
 <p><a href='/studio/{html.escape(session.session_id)}/concepts'>BACK TO FUTURES</a></p>
 """
@@ -343,6 +349,8 @@ async def studio_build(session_id: str) -> str:
     session = _session(session_id)
     if session.futures is None or not session.selected_candidate_id:
         raise HTTPException(status_code=400, detail='Select and render a concept before build planning')
+    if session.render_result is None or session.render_result.status != 'pass' or not session.render_result.accepted_image_url:
+        raise HTTPException(status_code=400, detail='An approved render is required before build planning')
     future = next((x for x in session.futures.selected_futures if x.candidate.candidate_id == session.selected_candidate_id), None)
     if future is None:
         raise HTTPException(status_code=400, detail='Selected future is unavailable')
@@ -351,6 +359,7 @@ async def studio_build(session_id: str) -> str:
             state=session.project_state,
             future=future,
             concept_mode=True,
+            render_image_url=str(session.render_result.accepted_image_url),
         )
     except BuildMasterError as exc:
         return _page(f"<div class='k'>BUILD MASTER / ERROR</div><h1>STOP.</h1><p>{html.escape(str(exc))}</p><p><a href='/studio/{html.escape(session_id)}/render'>BACK TO RENDER</a></p>")
