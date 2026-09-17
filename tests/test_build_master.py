@@ -1,6 +1,6 @@
 import pytest
 
-from ruinform_intelligence.build_master import BuildMasterError, _validate_plan
+from ruinform_intelligence.build_master import BuildMasterError, _build_user_content, _validate_plan
 from ruinform_intelligence.build_models import BuildPlan, BuildStep
 from ruinform_intelligence.future_models import CandidateForm, FeasibilityReview, MaterialUse, ReviewedFuture
 from ruinform_intelligence.models import MaterialItem, ProjectState
@@ -93,3 +93,34 @@ def test_build_plan_rejects_unknown_source_materials() -> None:
     state = ProjectState(materials=[MaterialItem(item_id="material_1", display_name="source")])
     with pytest.raises(BuildMasterError, match="unknown source material IDs"):
         _validate_plan(plan=_plan("invented_material"), state=state, future=_future())
+
+
+def test_build_user_content_attaches_approved_render() -> None:
+    state = ProjectState(materials=[MaterialItem(item_id="material_1", display_name="source")])
+    content = _build_user_content(
+        state=state,
+        future=_future(),
+        plan_mode="concept_prototype",
+        render_image_url="https://example.com/approved-render.jpg",
+    )
+
+    assert content[0]["type"] == "input_text"
+    assert "visual target" in content[0]["text"]
+    assert content[1] == {
+        "type": "input_image",
+        "image_url": "https://example.com/approved-render.jpg",
+        "detail": "high",
+    }
+
+
+def test_build_user_content_works_without_render() -> None:
+    state = ProjectState(materials=[MaterialItem(item_id="material_1", display_name="source")])
+    content = _build_user_content(
+        state=state,
+        future=_future(),
+        plan_mode="verified",
+        render_image_url=None,
+    )
+
+    assert len(content) == 1
+    assert content[0]["type"] == "input_text"
