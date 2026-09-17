@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 
 EvidenceSourceType = Literal["image", "user_statement", "measurement", "tool_result"]
 ClaimChangeType = Literal["new", "confirmed", "revised", "contradicted"]
+DifficultyMode = Literal["easy", "medium", "wild"]
+BackgroundMode = Literal["clean_studio", "ruinform_world"]
 
 
 class ClaimKind(str, Enum):
@@ -70,6 +72,20 @@ class ProjectConstraints(BaseModel):
     location_notes: str | None = None
 
 
+class CreativeIntent(BaseModel):
+    """User-controlled creative guidance that survives the whole RUINFORM pipeline.
+
+    ``direction`` is optional human language. It guides the system but never replaces
+    the evidence, material reality, safety constraints, or RUINFORM design rules.
+    ``difficulty_mode`` controls transformation complexity. ``background_mode`` is a
+    presentation choice and should not change the core object concept.
+    """
+
+    direction: str | None = Field(default=None, max_length=800)
+    difficulty_mode: DifficultyMode = "medium"
+    background_mode: BackgroundMode = "clean_studio"
+
+
 class ProjectState(BaseModel):
     project_id: str = Field(default_factory=lambda: str(uuid4()))
     stage: Literal[
@@ -85,5 +101,6 @@ class ProjectState(BaseModel):
     materials: list[MaterialItem] = Field(default_factory=list)
     claim_history: list[MaterialObservation] = Field(default_factory=list)
     constraints: ProjectConstraints = Field(default_factory=ProjectConstraints)
+    creative_intent: CreativeIntent = Field(default_factory=CreativeIntent)
     unresolved_critical_unknowns: list[str] = Field(default_factory=list)
     next_user_request: str | None = None
