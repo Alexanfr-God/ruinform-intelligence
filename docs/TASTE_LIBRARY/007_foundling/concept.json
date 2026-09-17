@@ -1,0 +1,52 @@
+{
+  "id": "007_foundling",
+  "title": "FOUNDLING / FOUND MATTER CHARACTER",
+  "status": "curated-v0",
+  "primary": "MATERIAL / DETAIL",
+  "secondary": "OBJECT / FORM",
+  "tertiary": "NARRATIVE / CHARACTER",
+  "difficulty": "VERY EASY",
+  "operator": "discover_latent_form",
+  "operator_label": "Discover latent form",
+  "core_formula": "found matter -> shape recognition -> minimal intervention -> character -> collectible artwork",
+  "core_lesson": "FIND THE FORM BEFORE YOU MAKE THE FORM.",
+  "secondary_lesson": "MINIMUM INTERVENTION, MAXIMUM RECOGNITION.",
+  "summary": "Found stones become a character-based framed art object by observing latent form in the material and adding only minimal drawn intervention.",
+  "learn": [
+    "Ask what the material already suggests before trying to transform it.",
+    "Look for latent form before fabrication.",
+    "Add only what is missing for recognition.",
+    "Natural variation can become product value.",
+    "A found object can sit between image, relief, collage and sculpture.",
+    "Minimal intervention can produce strong transformation.",
+    "Know when to stop."
+  ],
+  "avoid": [
+    "rabbit-like characters as a default answer",
+    "round head plus oval body as a fixed recipe",
+    "exact drawn face, whiskers, paws, or curled tail",
+    "beige paper and dark frame as mandatory styling",
+    "cute characters as the only emotional mode",
+    "framed wall pieces as the only output format"
+  ],
+  "materials": [
+    "found stones",
+    "reclaimed wood frame",
+    "textured backing paper",
+    "black ink marker",
+    "simple adhesive"
+  ],
+  "emotion_tags": ["gentle", "observant", "poetic", "playful", "collectible"],
+  "failure_modes": [
+    "forcing arbitrary stones into a pre-decided character instead of reading the material",
+    "too much drawing, paint, or decoration overwhelms the found matter",
+    "the intervention becomes craft clutter instead of minimal completion",
+    "the stones stop feeling unique and natural variation is lost",
+    "the result looks like a generic kids craft rather than a collectible object",
+    "the frame and background styling overpower the material discovery"
+  ],
+  "tags": ["latent-form", "shape-recognition", "minimal-intervention", "framed-art", "character", "found-matter", "collectible", "material-observation"],
+  "asset_status": "source_mapped_binary_ingest_pending",
+  "asset_manifest": "assets/manifest.json",
+  "source": "user-provided concept text + 3 images for CONCEPT 07"
+}
