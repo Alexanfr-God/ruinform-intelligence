@@ -1,0 +1,12 @@
+{
+  "card_id": "008_coinpour",
+  "asset_status": "source_mapped_binary_ingest_pending",
+  "roles": {
+    "01_source_parts": "Mapped to user-provided RUINFORM poster image for concept 08 (parts panel with cup, saucer, fork, coins, adhesive).",
+    "02_principle_assembly": "Mapped to user-provided RUINFORM poster image for concept 08 (build steps / hidden support / coin cascade sequence).",
+    "03_clean_product": "Mapped to user-provided neutral product shot image for concept 08.",
+    "04_hero_world": "Mapped to user-provided gallery/interior hero shot image for concept 08."
+  },
+  "notes": "Binary image ingest into the canonical Taste Library bucket is pending. This manifest defines the required four-role mapping.",
+  "provenance": "User conversation upload, concept 08"
+}
