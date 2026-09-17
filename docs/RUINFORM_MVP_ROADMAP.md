@@ -1,259 +1,220 @@
 # RUINFORM — MVP ROADMAP
 
-> Living document. Update this file when product direction changes.
+> Living document. Update this file whenever product direction changes.
 
 ## North Star
 
-A person photographs discarded / ordinary real objects and RUINFORM turns them into a **desirable post-apocalyptic design object** that still visibly comes from those real source materials.
-
-MVP success is one sentence:
+A person photographs discarded / ordinary real objects and RUINFORM turns them into a **desirable post-consumer / post-apocalyptic design object** that still visibly comes from those real source materials.
 
 **UPLOAD REAL JUNK → GET A WOW OBJECT → WANT TO BUILD IT.**
 
-The product is not trying to make generic AI art. It is building a post-apocalyptic reuse economy around real matter.
+The product is not generic AI art. It is a post-consumer salvage economy around real matter.
 
 ---
 
-## Current MVP scope
+## Hackathon scope lock
 
-For now we deliberately focus on only two jobs:
+For the hackathon we deliberately focus on one undeniable proof:
 
-1. **Understand the uploaded photographs and source objects.**
-2. **Generate one genuinely strong transformation image.**
+1. wow landing page / world
+2. upload 2–4 real source photos
+3. vision-first Design Brain sees the actual photos
+4. four strong concept futures
+5. GPT Image 2.5 Sunburst renders the selected future
+6. source → future result presentation
+7. closed / quota-controlled testing to protect API spend
 
-Everything else is secondary until this loop produces a consistent wow effect.
+Everything else is roadmap until this path creates reliable wow.
 
 ```mermaid
 flowchart LR
-    A[User photos] --> B[Design Brain]
-    B --> C[VisualSpec / shared ProjectState]
-    C --> D[GPT Image 2.5 Sunburst]
-    D --> E[WOW transformation image]
-    E --> F{User loves it?}
-    F -- yes --> G[MAKE IT REAL — later]
-    F -- no --> B
+    A[Original photos] --> B[Shared ProjectState]
+    A --> C[Vision-first Design Brain]
+    B --> C
+    T[Taste Library 2-4 refs] --> C
+    S[RUINFORM Style Bible] --> C
+    C --> D[Selected concept / VisualSpec]
+    A --> E[GPT Image 2.5 Sunburst]
+    D --> E
+    E --> F[WOW artifact image]
+    F --> G{User wants it?}
+    G -- yes --> H[MAKE IT REAL later]
+    G -- no --> C
 ```
 
 ---
 
 ## Minimal architecture
 
-### 1. Shared ProjectState
+### Shared ProjectState
 
-One source of truth. Agents/modules do **not** pass lossy summaries to each other as the only context.
+One source of truth. Modules do not rely on lossy summaries as their only context.
 
-ProjectState keeps:
-
+Keep:
 - original source photos
-- material IDs
-- material observations
-- user goal / optional intent
+- material IDs / observations
+- user intent
 - constraints
 - selected concept
 - visual direction
 - generated image
 - later: approved image + build plan
 
-Every visual intelligence step that needs the originals receives the original photos again.
+Any visual module that needs the originals receives the original photos again.
 
-### 2. Design Brain
+### Design Brain
 
-Primary reasoning model: OpenAI reasoning/vision model.
+Primary reasoning / vision brain.
 
 Responsibilities:
-
-- understand source objects
+- inspect original photographs directly
+- understand source matter
 - invent the transformation
+- enforce RUINFORM world / taste
+- reject obvious upcycling ideas
 - preserve provenance
-- enforce RUINFORM visual taste
-- create one strong VisualSpec
-- avoid generic AI decoration
+- create four distinct futures
+- hand structured concept data forward
 
-### 3. Image Engine
+Plugin-ready skill source:
+`skills/ruinform-design-brain/SKILL.md`
+
+Runtime prompt source:
+`prompts/design_brain.md`
+
+### Image Engine
 
 **PRIMARY: GPT-Image-2.5 Sunburst**
 
-Reasons:
-
 - direct image inputs
 - generation + editing
-- high source fidelity
-- fewer translation layers between reasoning and image creation
+- strong visual synthesis
+- fewer translation layers
 
-**PARKED / BENCHMARK: Higgsfield**
+**PARKED: Higgsfield**
 
-Keep adapter code but remove it from the default MVP path.
+Keep adapter for benchmark/fallback, but no longer default.
 
-### 4. Build Brain — later
+### Taste Library
 
-Only after visual quality is consistently strong.
+Visual few-shot calibration, not fine-tuning.
 
-Input:
+Start with 6–10 excellent references, not 50 random images.
 
-- original photos
-- ProjectState
-- approved final render
+Retrieve 2–4 relevant references per project.
 
-Output:
+Structure and metadata rules:
+`docs/TASTE_LIBRARY/README.md`
 
-- shopping list
-- tools
-- preflight
-- build steps
-- safety gates
-- final visual verification
+### Style Bible
 
----
+World / material / photographic language:
+`docs/RUINFORM_STYLE_BIBLE.md`
 
-## RUINFORM visual identity
+### Build Brain — later
 
-The missing ingredient is not “more cyberpunk”.
-
-The target is **post-apocalyptic design from real discarded matter**.
-
-Core taste rules:
-
-- original material provenance must remain visible
-- one hero object
-- one memorable transformation gesture
-- strong silhouette
-- tension between materials (soft/hard, damaged/pristine, exposed/protected, industrial/domestic)
-- intentional asymmetry and negative space when useful
-- believable matter, seams, wear, folds, glass, metal, plastic
-- object first, background second
-- no generic RGB decoration as a substitute for an idea
-- no “AI 2023” glossy random collage
-
-The result should feel like a discovered artifact from a functioning post-collapse workshop, photographed today by a great designer.
+Only after `photos → image` reliably produces things worth building.
 
 ---
 
-## Taste Library — planned bucket
+## Current critical discovery
 
-We will create a curated visual reference library. This is **not** training a new model. It is retrieval-based taste calibration.
+The old Concept Architect selected concepts from compact ProjectState text only. Original photographs were not shown until the later Visual Director stage.
 
-Suggested buckets:
+That means a weak concept could be selected first and the renderer was then asked to make the weak idea beautiful.
 
-```text
-/taste-library
-    /lighting
-    /lamps
-    /wall-art
-    /sculpture
-    /furniture
-    /storage
-    /wearables
-    /small-objects
-    /materials
-    /backgrounds
-    /post-apocalyptic-world
-```
-
-Each approved reference should eventually carry metadata:
-
-```json
-{
-  "category": "lighting",
-  "why_good": [
-    "strong silhouette",
-    "visible reclaimed source",
-    "one material tension",
-    "believable construction"
-  ],
-  "avoid_copying": [
-    "exact geometry",
-    "brand identity"
-  ],
-  "tags": ["industrial", "worn", "asymmetric", "warm-light"]
-}
-```
-
-At generation time the Design Brain should receive a **small relevant selection**, not the whole library.
+**Decision:** concept generation becomes vision-first. The Design Brain must see the original photographs before selecting futures.
 
 ---
 
-## Build sequence
+## Current build sequence
 
-### RFM-INT-0008 — GPT Image primary renderer
+### RFM-INT-0008 — GPT Image primary
 
-- [x] Add GPT Image provider
-- [x] Keep Higgsfield adapter as fallback
-- [x] Make OpenAI the default render provider
-- [ ] Run same bottle / jacket / LED test through GPT Image
-- [ ] Compare against Higgsfield visually
-- [ ] Record result in Failure / Success Library
+- [x] GPT Image provider
+- [x] OpenAI renderer default
+- [x] Higgsfield parked
+- [x] First GPT Image bottle/jacket/LED test
+- [x] Confirm renderer quality is cleaner but concept itself remains too literal
 
-**Gate:** GPT result must materially exceed the previous Higgsfield outputs in coherence, authorship and source fidelity.
+Learning: changing renderer alone is insufficient if the concept is weak.
 
-### RFM-INT-0009 — Taste Library v0
+### RFM-INT-0009 — Vision-first Design Brain
 
-- [ ] Define first 20–30 approved reference images
-- [ ] Split into categories
-- [ ] Add short `why_good` metadata
-- [ ] Retrieve 2–4 relevant references per project
-- [ ] Feed those references to Design Brain / image step
+- [x] create RUINFORM Design Brain prompt
+- [x] create plugin-ready Skill source
+- [x] pass original photographs into concept generation
+- [x] increase concept-stage creative reasoning priority
+- [x] weight originality / artistic impact more strongly in preview ranking
+- [ ] rerun same real source set from the beginning
+- [ ] judge concept quality before rendering
 
-**Gate:** the same source photos produce visibly RUINFORM-looking results across several categories.
+**Gate:** at least one of four concepts should feel meaningfully non-obvious before image generation.
 
-### RFM-INT-0010 — RUINFORM World / Background Language
+### RFM-INT-0010 — Taste Library micro-v0
 
-- [ ] Define 3–5 photographic environments
-- [ ] Workshop / bunker / salvage gallery / abandoned domestic / clean artifact documentation
-- [ ] Keep background subordinate to object
+- [x] create structure + README
+- [ ] curate first 6–10 references with user
+- [ ] add metadata
+- [ ] retrieve 2–4 relevant refs per concept request
+- [ ] pass selected refs to Design Brain
 
-### RFM-INT-0011 — Async generation UX
+### RFM-INT-0011 — 5–10 real evaluation cases
 
-Only after image quality works.
+For each case capture:
+- source photos
+- chosen concept
+- final image
+- wow score
+- provenance score
+- originality score
+- build desire yes/no
+- failure note
 
-- [ ] submit render job
-- [ ] persist job_id/state
-- [ ] progress screen
-- [ ] polling / completion
-- [ ] no long browser request
+### RFM-INT-0012 — Hackathon landing / demo polish
 
-### RFM-INT-0012 — Waiting experience
+- world-first landing
+- controlled closed alpha
+- source→future visual storytelling
+- record one real end-to-end demo
 
-Parked until core generation succeeds.
+Detailed plan:
+`docs/RUINFORM_HACKATHON_DEMO.md`
 
-Idea: a small post-apocalyptic salvage game using a proven simple game mechanic with original RUINFORM models/assets/location.
+### Later
 
-Stages can map to real backend work:
-
-- SCANNING MATTER
-- FINDING FORM
-- BUILDING ARTIFACT
-- SYNTHESIZING IMAGE
-- FINALIZING FUTURE
-
-### RFM-INT-0013 — MAKE IT REAL
-
-Resume Build Master only after the image is worth building.
+- async generation UX
+- waiting mini-game
+- Build Master / MAKE IT REAL
+- broader agent architecture
+- marketplace / economy layer
 
 ---
 
-## What we deliberately do NOT build yet
+## What we do NOT build yet
 
-- large multi-agent swarm
+- giant multi-agent swarm
 - custom foundation model
 - fine-tuning
-- complex game
+- full game
 - marketplace
-- token / economy layer
-- social feed
-- full manufacturing system
-- endless critic → regenerate loops
+- token economy
+- manufacturing system
+- endless critic/regenerate loops
 
-These may come later. They are not allowed to distract from the current product proof.
+We use ready-made infrastructure wherever possible and write custom code only around RUINFORM's unique taste, state, transformation logic and UX.
 
 ---
 
-## Current decision log
+## Decision log
 
-- Render.com remains hosting / deployment infrastructure, not an image model.
-- GPT Image becomes the primary image renderer.
+- Render.com = hosting/deployment, not image intelligence.
+- GPT Image is primary renderer.
 - Higgsfield is parked, not deleted.
-- Shared ProjectState remains the central architecture.
-- Original photos must remain available to visual stages.
-- RUINFORM needs a curated Taste Library rather than ever-longer negative prompts.
-- Post-apocalyptic reuse economy is the core world and product identity.
-- Waiting-game idea is recorded but explicitly postponed.
+- Original photos must be available to concept and visual stages.
+- One shared ProjectState remains central.
+- RUINFORM Design Brain should be reusable as a Skill/Plugin brain.
+- Taste Library starts small: 6–10 curated references.
+- Post-consumer / post-apocalyptic salvage economy is core product identity.
+- Hackathon uses closed/quota-controlled testing if necessary to protect API spend.
+- Waiting mini-game is recorded but postponed.
