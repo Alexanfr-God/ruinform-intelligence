@@ -44,11 +44,46 @@ def _validate_plan(*, plan: BuildPlan, state: ProjectState, future: ReviewedFutu
         raise BuildMasterError("Build plan may be generated only for a passed future")
 
 
+def _build_user_content(
+    *,
+    state: ProjectState,
+    future: ReviewedFuture,
+    plan_mode: str,
+    render_image_url: str | None,
+) -> list[dict[str, str]]:
+    content: list[dict[str, str]] = [
+        {
+            "type": "input_text",
+            "text": (
+                "Create a practical post-production build plan for this approved RUINFORM future.\n\n"
+                f"PLAN MODE: {plan_mode}\n\n"
+                f"Project state: {compact_state_json(state)}\n\n"
+                f"Approved future: {future.candidate.model_dump_json()}\n\n"
+                f"Feasibility review: {future.review.model_dump_json()}\n\n"
+                "If an approved render image is attached, treat it as the visual target. "
+                "Reproduce its visible construction logic where that logic is supported by the source evidence. "
+                "Do not invent hidden supports, dimensions, joints, materials, or structural facts merely because the image looks plausible. "
+                "Any visible feature that cannot be safely derived from the evidence must become an adaptive step or an unresolved verification gate."
+            ),
+        }
+    ]
+    if render_image_url:
+        content.append(
+            {
+                "type": "input_image",
+                "image_url": render_image_url,
+                "detail": "high",
+            }
+        )
+    return content
+
+
 async def generate_build_plan(
     *,
     state: ProjectState,
     future: ReviewedFuture,
     concept_mode: bool,
+    render_image_url: str | None = None,
     client: AsyncOpenAI | None = None,
     model: str | None = None,
 ) -> BuildPlan:
@@ -66,18 +101,12 @@ async def generate_build_plan(
         input=[
             {
                 "role": "user",
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": (
-                            "Create a practical post-production build plan for this approved RUINFORM future.\n\n"
-                            f"PLAN MODE: {plan_mode}\n\n"
-                            f"Project state: {compact_state_json(state)}\n\n"
-                            f"Approved future: {future.candidate.model_dump_json()}\n\n"
-                            f"Feasibility review: {future.review.model_dump_json()}"
-                        ),
-                    }
-                ],
+                "content": _build_user_content(
+                    state=state,
+                    future=future,
+                    plan_mode=plan_mode,
+                    render_image_url=render_image_url,
+                ),
             }
         ],
         text={
