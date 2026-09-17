@@ -1,0 +1,59 @@
+from ruinform_intelligence.concept_preview import _creative_direction, _difficulty_contract
+from ruinform_intelligence.models import CreativeIntent, ProjectState
+from ruinform_intelligence.render_prompt import _background_render_instruction, _difficulty_render_instruction
+
+
+def test_creative_intent_defaults_are_backwards_compatible() -> None:
+    state = ProjectState()
+    assert state.creative_intent.direction is None
+    assert state.creative_intent.difficulty_mode == "medium"
+    assert state.creative_intent.background_mode == "clean_studio"
+
+
+def test_creative_direction_persists_and_session_adjustment_is_additive() -> None:
+    state = ProjectState(
+        creative_intent=CreativeIntent(
+            direction="wall object, no electronics",
+            difficulty_mode="easy",
+            background_mode="clean_studio",
+        )
+    )
+    text = _creative_direction(state, "keep the cup intact")
+    assert "wall object, no electronics" in text
+    assert "keep the cup intact" in text
+    assert "PROJECT DIRECTION" in text
+    assert "SESSION ADJUSTMENT" in text
+
+
+def test_difficulty_contracts_are_materially_different() -> None:
+    assert "0-2" in _difficulty_contract("easy")
+    assert "0-4" in _difficulty_contract("medium")
+    assert "radical geometry" in _difficulty_contract("wild")
+
+
+def test_clean_studio_background_contract_keeps_environment_neutral() -> None:
+    state = ProjectState(
+        creative_intent=CreativeIntent(background_mode="clean_studio")
+    )
+    text = _background_render_instruction(state)
+    assert "CLEAN STUDIO" in text
+    assert "No ruins" in text
+    assert "object alone" in text
+
+
+def test_ruinform_world_background_contract_is_post_apocalyptic_but_object_first() -> None:
+    state = ProjectState(
+        creative_intent=CreativeIntent(background_mode="ruinform_world")
+    )
+    text = _background_render_instruction(state)
+    assert "RUINFORM WORLD" in text
+    assert "POST-APOCALYPTIC" in text
+    assert "70%" in text
+    assert "No generic cyberpunk" in text
+
+
+def test_render_difficulty_contract_tracks_project_mode() -> None:
+    easy = ProjectState(creative_intent=CreativeIntent(difficulty_mode="easy"))
+    wild = ProjectState(creative_intent=CreativeIntent(difficulty_mode="wild"))
+    assert "EASY BUILD LANGUAGE" in _difficulty_render_instruction(easy)
+    assert "WILD BUILD LANGUAGE" in _difficulty_render_instruction(wild)
