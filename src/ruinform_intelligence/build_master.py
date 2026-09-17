@@ -48,12 +48,15 @@ async def generate_build_plan(
     *,
     state: ProjectState,
     future: ReviewedFuture,
+    accepted_image_url: str,
     concept_mode: bool,
     client: AsyncOpenAI | None = None,
     model: str | None = None,
 ) -> BuildPlan:
     if future.review.status != "pass":
         raise BuildMasterError("Build plan may be generated only for a passed future")
+    if not accepted_image_url.strip():
+        raise BuildMasterError("Build Master requires the approved render image")
 
     model = model or os.getenv("RUINFORM_BUILD_MASTER_MODEL", DEFAULT_MODEL)
     client = client or AsyncOpenAI()
@@ -71,12 +74,19 @@ async def generate_build_plan(
                         "type": "input_text",
                         "text": (
                             "Create a practical post-production build plan for this approved RUINFORM future.\n\n"
+                            "IMPORTANT: the image attached to this message is the exact render the user approved. "
+                            "Treat its visible form, arrangement, proportions, surface treatment and assembly intent as the visual target. "
+                            "Do not silently redesign it. If the image conflicts with verified physical facts, keep the facts and state the mismatch as a gate.\n\n"
                             f"PLAN MODE: {plan_mode}\n\n"
                             f"Project state: {compact_state_json(state)}\n\n"
                             f"Approved future: {future.candidate.model_dump_json()}\n\n"
                             f"Feasibility review: {future.review.model_dump_json()}"
                         ),
-                    }
+                    },
+                    {
+                        "type": "input_image",
+                        "image_url": accepted_image_url,
+                    },
                 ],
             }
         ],

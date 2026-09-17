@@ -253,8 +253,19 @@ def _build_page(session: TransformationSession) -> str:
     plan = session.build_plan
     if plan is None:
         return _render_page(session)
+    image = None
+    if session.render_result and session.render_result.accepted_image_url:
+        image = str(session.render_result.accepted_image_url)
+    visual = (
+        f"<div class='panel'><div class='k'>APPROVED VISUAL / BUILD TARGET</div>"
+        f"<img class='hero' src='{html.escape(image, quote=True)}' alt='Approved RUINFORM build target'/></div>"
+        if image
+        else ""
+    )
     additions = "".join(f"<li>{html.escape(x)}</li>" for x in plan.added_materials) or "<li>none declared</li>"
     tools = "".join(f"<li>{html.escape(x)}</li>" for x in plan.tools) or "<li>none declared</li>"
+    preparation = "".join(f"<li>{html.escape(x)}</li>" for x in plan.preparation_checks) or "<li>none declared</li>"
+    final_checks = "".join(f"<li>{html.escape(x)}</li>" for x in plan.final_verification) or "<li>none declared</li>"
     steps = []
     for step in plan.steps:
         stop = " · ".join(step.stop_if) if step.stop_if else "none"
@@ -264,9 +275,12 @@ def _build_page(session: TransformationSession) -> str:
     return f"""
 <div class='k'>BUILD MASTER / POST-PRODUCTION</div><h1>MAKE IT<br>REAL.</h1>
 <h2>{html.escape(plan.title)}</h2><p>{html.escape(plan.result_description)}</p>
-<div class='grid'><div class='panel'><div class='k'>ADDED MATERIALS</div><ul>{additions}</ul></div><div class='panel'><div class='k'>TOOLS</div><ul>{tools}</ul></div></div>
+{visual}
+<div class='grid'><div class='panel'><div class='k'>SHOPPING / ADDED MATERIALS</div><ul>{additions}</ul></div><div class='panel'><div class='k'>TOOLS</div><ul>{tools}</ul></div></div>
+<div class='panel'><div class='k'>PREFLIGHT / PREPARATION CHECKS</div><ul>{preparation}</ul></div>
 <div class='rule'></div>{''.join(steps)}
 <div class='grid'><div class='panel'><div class='k'>SAFETY GATES</div><ul>{gates}</ul></div><div class='panel'><div class='k'>VERIFY BEFORE REAL USE</div><ul>{unresolved}</ul></div></div>
+<div class='panel'><div class='k'>FINAL VERIFICATION / MATCH THE APPROVED VISUAL</div><ul>{final_checks}</ul></div>
 <p class='warning'>{html.escape(plan.maker_note)}</p>
 <p><a href='/studio/{html.escape(session.session_id)}/concepts'>BACK TO FUTURES</a></p>
 """
@@ -343,6 +357,14 @@ async def studio_build(session_id: str) -> str:
     session = _session(session_id)
     if session.futures is None or not session.selected_candidate_id:
         raise HTTPException(status_code=400, detail='Select and render a concept before build planning')
+    if (
+        session.render_result is None
+        or session.render_result.status != 'pass'
+        or session.render_result.accepted_image_url is None
+    ):
+        raise HTTPException(status_code=400, detail='MAKE IT REAL requires an approved render image')
+    if session.render_result.candidate_id != session.selected_candidate_id:
+        raise HTTPException(status_code=409, detail='Approved render does not match the selected future')
     future = next((x for x in session.futures.selected_futures if x.candidate.candidate_id == session.selected_candidate_id), None)
     if future is None:
         raise HTTPException(status_code=400, detail='Selected future is unavailable')
@@ -350,6 +372,7 @@ async def studio_build(session_id: str) -> str:
         plan = await generate_build_plan(
             state=session.project_state,
             future=future,
+            accepted_image_url=str(session.render_result.accepted_image_url),
             concept_mode=True,
         )
     except BuildMasterError as exc:
