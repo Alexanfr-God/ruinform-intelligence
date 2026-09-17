@@ -79,6 +79,21 @@ def _background_contract(state: ProjectState) -> str:
     )
 
 
+def _supporting_parts_contract(state: ProjectState) -> str:
+    mode = state.creative_intent.difficulty_mode
+    if mode == "easy":
+        return (
+            "EASY support budget: normally 0-2 simple supporting parts. Prefer clamps, cord, a small base, a bracket, or one connector over fabricated assemblies."
+        )
+    if mode == "wild":
+        return (
+            "WILD support budget: specialist structure is allowed only when it enables the central source-driven gesture. Do not use complexity as visual camouflage."
+        )
+    return (
+        "MEDIUM support budget: roughly 0-4 supporting parts. Every bracket, frame, joint or fastener must visibly earn its place and remain subordinate to the source objects."
+    )
+
+
 def fallback_visual_direction(
     *,
     state: ProjectState,
@@ -106,7 +121,7 @@ def fallback_visual_direction(
         conceptual_tension="Create a clear visual tension between the rigid hero and transformed supporting matter.",
         material_relationship="Secondary materials should actively transform, frame or interrupt the hero rather than merely sit beside it.",
         signature_gesture=future.candidate.transformation_logic,
-        ordinary_solution_to_reject="Reject the obvious stacked, evenly wrapped or merely decorated version of this concept.",
+        ordinary_solution_to_reject="Reject the obvious stacked, evenly wrapped, taped, clipped or merely decorated version of this concept.",
         silhouette="One immediately readable finished object with a distinctive non-generic silhouette.",
         negative_space="Use deliberate openings and breathing room so the hero remains legible.",
         color_strategy="Preserve source colors and use accents as controlled contrast rather than equal visual noise.",
@@ -115,8 +130,9 @@ def fallback_visual_direction(
         lighting="Sculptural editorial lighting that reveals material contrast, depth, folds, glass and surface transitions.",
         environment=environment,
         authorship_cues=[
-            "One surprising but coherent material gesture.",
+            "One surprising but coherent material gesture that is visible without explanation.",
             "A silhouette that could be recognized from across the room.",
+            "Supporting hardware reads as one intentional system, not a random kit of parts.",
         ],
         must_keep=[
             "Keep the hero source object clearly recognizable.",
@@ -128,7 +144,8 @@ def fallback_visual_direction(
             "Do not create visual clutter or several competing concepts.",
             "Do not add text, labels, logos, plaques, or branding.",
             "Do not hide the hero object behind the secondary material.",
-            "Do not fall back to an evenly wrapped LED spiral, stacked ring base, or simple decorative sleeve unless the candidate absolutely requires it.",
+            "Do not fall back to an evenly wrapped LED spiral, stacked ring base, simple decorative sleeve, or obvious taped/clipped school-project connection unless the candidate absolutely requires it.",
+            "Do not use grime, rust, scenery or random hardware as a substitute for authorship.",
         ],
     )
 
@@ -184,6 +201,7 @@ async def generate_visual_direction(
                 f"RENDER MODE: {render_mode}\n\n"
                 f"PERSISTENT CREATIVE DIRECTION: {intent.direction or 'open exploration'}\n"
                 f"DIFFICULTY MODE: {intent.difficulty_mode}\n"
+                f"SUPPORTING PARTS CONTRACT: {_supporting_parts_contract(state)}\n"
                 f"BACKGROUND CONTRACT: {_background_contract(state)}\n\n"
                 "Creative Direction guides authorship and constraints, but must not erase source identity or turn this into generic text-to-image. "
                 "Background Mode controls presentation only: do not redesign the object to fit scenery.\n\n"
@@ -191,11 +209,15 @@ async def generate_visual_direction(
                 f"PROJECT STATE: {compact_state_json(state)}\n\n"
                 f"SELECTED CANDIDATE: {future.candidate.model_dump_json()}\n\n"
                 f"FEASIBILITY REVIEW: {future.review.model_dump_json()}\n\n"
+                "COLLECTIBLE AUTHORSHIP TEST: imagine this exact object photographed alone on a neutral grey background. It must still feel authored, complete, and worth keeping. "
+                "If it reads like a school DIY demonstration, improve the geometry, connection hierarchy, negative space, balance, or material relationship WITHOUT changing the selected concept. "
+                "A source object must not look accidentally hung, taped, clipped or parked beside another source object. Make their relationship visually necessary. "
+                "Authorship must come from the object's form and relationships, not from post-apocalyptic grime or background theatre.\n\n"
                 "The previous failure mode to fight is a clean but generic render: source objects stacked, sleeved, "
                 "or evenly wrapped with light. Choose one hero, one conceptual tension and one authored signature gesture. "
                 "Reject the most obvious decorative solution even if it is technically valid. "
                 "Also fight the opposite failure: do not bury a simple source-driven idea under a large inventory of invented hardware. "
-                "Supporting parts should earn their place and remain visually subordinate to the user's source objects."
+                "Supporting parts should read as one coherent secondary system, earn their place, and remain visually subordinate to the user's source objects."
             ),
         }
     ]
@@ -211,7 +233,7 @@ async def generate_visual_direction(
 
     response = await client.responses.create(
         model=model,
-        reasoning={"effort": "medium"},
+        reasoning={"effort": "high"},
         instructions=load_visual_director_prompt(),
         input=[{"role": "user", "content": content}],
         text={
