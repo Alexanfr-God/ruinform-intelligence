@@ -91,6 +91,32 @@ def _instructions(mode: str) -> str:
     )
 
 
+def _difficulty_contract(mode: str) -> str:
+    if mode == "easy":
+        return (
+            "EASY: prioritize household/basic hand tools, reversible or simple joins, low material alteration, "
+            "and normally 0-2 simple added parts. Avoid specialist fabrication and unnecessary mechanisms. "
+            "The concept still needs one authored design gesture; easy must not mean boring."
+        )
+    if mode == "wild":
+        return (
+            "WILD: allow radical geometry, mechanisms, aggressive transformation and specialist fabrication when the idea earns it. "
+            "Do not invent complexity merely for spectacle. Preserve visible source provenance and keep the physical logic understandable."
+        )
+    return (
+        "MEDIUM: allow basic workshop operations such as drilling, cutting, bending, clamping and simple mechanisms, "
+        "with roughly 0-4 supporting parts when needed. Seek a strong authored transformation without turning the source into an unrelated prop."
+    )
+
+
+def _creative_direction(state: ProjectState, user_intent: str | None) -> str:
+    stored = (state.creative_intent.direction or "").strip()
+    extra = (user_intent or "").strip()
+    if stored and extra and stored != extra:
+        return f"PROJECT DIRECTION: {stored}\nSESSION ADJUSTMENT: {extra}"
+    return stored or extra or "OPEN EXPLORATION — surprise the user within RUINFORM rules."
+
+
 async def generate_concept_preview(
     *,
     state: ProjectState,
@@ -109,6 +135,7 @@ async def generate_concept_preview(
     material_contract = "\n".join(
         f"- {item.item_id} = {item.display_name}" for item in state.materials
     )
+    intent = state.creative_intent
     content: list[dict[str, object]] = [
         {
             "type": "input_text",
@@ -118,7 +145,14 @@ async def generate_concept_preview(
                 f"Project state: {compact_state_json(state)}\n\n"
                 "MATERIAL ID CONTRACT — material_uses may reference ONLY these exact IDs; never invent or rewrite an ID:\n"
                 f"{material_contract}\n\n"
-                f"User intent: {user_intent or 'open exploration'}\n\n"
+                "CREATIVE DIRECTION CONTRACT:\n"
+                f"{_creative_direction(state, user_intent)}\n"
+                "Treat explicit constraints such as 'no electronics', 'keep intact', 'wall object', or 'useful' as strong project guidance. "
+                "Treat mood words as preferences, not permission to ignore the real source objects. This is not a generic text-to-image prompt.\n\n"
+                "DIFFICULTY CONTRACT:\n"
+                f"{_difficulty_contract(intent.difficulty_mode)}\n\n"
+                f"BACKGROUND MODE: {intent.background_mode}. This is a later presentation choice. DO NOT let the background mode determine the object idea. "
+                "Invent the object first; the same concept must survive on a clean neutral background.\n\n"
                 "The product goal is not generic upcycling. Create desirable post-consumer artifacts with visible source provenance, "
                 "strong silhouette, one authored transformation gesture, and believable material logic. "
                 "Use the Taste Library as a grammar of design moves, never as a catalogue of objects to reproduce."
@@ -186,7 +220,7 @@ async def generate_concept_preview(
             usefulness_score=item.usefulness_hint,
             value_potential_score=item.value_hint,
             reasons=[
-                "Vision-first Design Brain preview using original source photographs, RUINFORM Skill/Style rules, and Taste Library grammar; detailed feasibility is intentionally deferred until after visual selection."
+                "Vision-first Design Brain preview using original source photographs, persistent Creative Intent, RUINFORM Skill/Style rules, and Taste Library grammar; detailed feasibility is intentionally deferred until after visual selection."
             ],
             required_changes=[],
             unresolved_dependencies=list(candidate.unresolved_dependencies),
