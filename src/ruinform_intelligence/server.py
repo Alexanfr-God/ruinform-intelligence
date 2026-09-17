@@ -17,8 +17,10 @@ app.include_router(evidence_media_router)
 app.include_router(future_forms_router)
 app.include_router(render_router)
 app.include_router(live_transformations_router)
-app.include_router(studio_router)
+# Static Studio entry routes must be registered before the dynamic
+# /studio/{session_id} routes, otherwise FastAPI treats "new" as a session ID.
 app.include_router(mvp_entry_router)
+app.include_router(studio_router)
 # Register post-production before the legacy lab router so the enhanced
 # render endpoint owns POST /lab/{session_id}/render/{candidate_id}.
 app.include_router(lab_postproduction_router)
