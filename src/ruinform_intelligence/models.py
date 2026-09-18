@@ -77,11 +77,13 @@ class CreativeIntent(BaseModel):
 
     ``direction`` is optional human language. It guides the system but never replaces
     the evidence, material reality, safety constraints, or RUINFORM design rules.
+    Longer briefs are allowed so a user can describe composition, gesture and exclusions
+    without turning the field into an unrestricted text-to-image prompt.
     ``difficulty_mode`` controls transformation complexity. ``background_mode`` is a
     presentation choice and should not change the core object concept.
     """
 
-    direction: str | None = Field(default=None, max_length=800)
+    direction: str | None = Field(default=None, max_length=3000)
     difficulty_mode: DifficultyMode = "medium"
     background_mode: BackgroundMode = "clean_studio"
 
