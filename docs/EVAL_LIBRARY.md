@@ -58,6 +58,8 @@ Current failure tags:
 
 - too_diy
 - too_complex
+- requires_too_much_craft_skill
+- overdesigned
 - weak_idea
 - too_many_added_parts
 - bad_render
@@ -66,6 +68,10 @@ Current failure tags:
 - low_physical_credibility
 - world_rescues_object
 - other
+
+`requires_too_much_craft_skill` is intentionally separate from `too_complex`: a concept may be mechanically simple but still demand professional sculptural, welding, sewing, finishing, or other craft skill that conflicts with RUINFORM's achievable-WOW goal.
+
+`overdesigned` captures a different failure: the concept may work, but it spends too much fabrication, detail, or authored complexity to produce the visual payoff. This supports the emerging RUINFORM rule: maximize visual leverage — preserve most of the impact with much less craft.
 
 The goal is low-friction structured feedback, not a long design critique.
 
