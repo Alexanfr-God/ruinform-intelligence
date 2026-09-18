@@ -11,6 +11,7 @@ from . import studio as studio_module
 router = APIRouter(tags=["studio-controls"])
 _DIFFICULTY_MODES = {"easy", "medium", "wild"}
 _BACKGROUND_MODES = {"clean_studio", "ruinform_world"}
+_MAX_CREATIVE_DIRECTION_CHARS = 3000
 
 
 def _selected(value: str, expected: str) -> str:
@@ -28,7 +29,8 @@ def _controls_page(session_id: str) -> str:
 <div class='panel'>
 <form method='post' action='/studio/{html.escape(session_id)}/controls'>
 <label>CREATIVE DIRECTION — optional</label>
-<textarea name='creative_direction' rows='4' maxlength='800' placeholder='Leave blank and let RUINFORM decide. Or: useful collectible, keep bottle intact, no electronics, more brutal...'>{direction}</textarea>
+<textarea name='creative_direction' rows='6' maxlength='3000' placeholder='Leave blank and let RUINFORM decide. Or describe the desired gesture, composition, exclusions and purpose while keeping source matter in control.'>{direction}</textarea>
+<p class='muted'>Up to 3000 characters. Use this for art direction, not for replacing the source objects with an unrelated text-to-image request.</p>
 <label>DIFFICULTY</label>
 <select name='difficulty_mode'>
 <option value='easy'{_selected(intent.difficulty_mode, 'easy')}>EASY — simple tools, minimal additions</option>
@@ -62,6 +64,15 @@ async def studio_controls_submit(
     background_mode: str = Form(default='clean_studio'),
 ):
     session = studio_module._session(session_id)
+    direction = creative_direction.strip()
+    if len(direction) > _MAX_CREATIVE_DIRECTION_CHARS:
+        body = (
+            "<div class='k'>PROJECT CONTROLS / TOO LONG</div><h1>SHORTEN IT.</h1>"
+            f"<p>Creative Direction is {len(direction)} characters. The current limit is {_MAX_CREATIVE_DIRECTION_CHARS}.</p>"
+            f"<p><a href='/studio/{html.escape(session_id)}/controls'>BACK TO CONTROLS</a></p>"
+        )
+        return HTMLResponse(studio_module._page(body, title="RUINFORM / PROJECT CONTROLS"), status_code=400)
+
     if difficulty_mode not in _DIFFICULTY_MODES:
         difficulty_mode = 'medium'
     if background_mode not in _BACKGROUND_MODES:
@@ -69,7 +80,7 @@ async def studio_controls_submit(
 
     creative_intent = session.project_state.creative_intent.model_copy(
         update={
-            'direction': creative_direction.strip() or None,
+            'direction': direction or None,
             'difficulty_mode': difficulty_mode,
             'background_mode': background_mode,
         }
