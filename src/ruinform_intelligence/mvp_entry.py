@@ -16,6 +16,7 @@ router = APIRouter(tags=["mvp-entry"])
 _ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 _MAX_FILES = 8
 _MAX_FILE_BYTES = 8 * 1024 * 1024
+_MAX_CREATIVE_DIRECTION_CHARS = 3000
 _DIFFICULTY_MODES = {"easy", "medium", "wild"}
 _BACKGROUND_MODES = {"clean_studio", "ruinform_world"}
 
@@ -62,8 +63,8 @@ async def new_project() -> str:
 <textarea name='user_context' rows='3' placeholder='Facts only: old ceramic cup, broken adapter, used pencil, empty bottle...'></textarea>
 <p class='hint'>Material facts help the system understand the source. Do not describe the desired final object here.</p>
 <label>CREATIVE DIRECTION — optional</label>
-<textarea name='creative_direction' rows='3' maxlength='800' placeholder='Leave blank and let RUINFORM decide. Or: wall object, more brutal, no electronics, keep the cup intact, something useful, for my bedroom...'></textarea>
-<p class='hint'>This is guidance for the whole pipeline, not a text-to-image prompt. Source reality and RUINFORM design rules still win.</p>
+<textarea name='creative_direction' rows='6' maxlength='3000' placeholder='Leave blank and let RUINFORM decide. Or describe the desired gesture, composition, exclusions and purpose. The source objects must still drive the result.'></textarea>
+<p class='hint'>Up to 3000 characters. This guides the whole pipeline; it is not a free-form text-to-image prompt. Source reality and RUINFORM design rules still win.</p>
 <div class='control-grid'>
 <div>
 <label>DIFFICULTY</label>
@@ -100,6 +101,18 @@ async def new_project_submit(
     if not 1 <= len(images) <= _MAX_FILES:
         return HTMLResponse(_page(f"<div class='k'>UPLOAD ERROR</div><h1>STOP.</h1><p>Upload between 1 and {_MAX_FILES} images.</p><p><a href='/studio/new'>TRY AGAIN</a></p>"), status_code=400)
 
+    direction = creative_direction.strip()
+    if len(direction) > _MAX_CREATIVE_DIRECTION_CHARS:
+        return HTMLResponse(
+            _page(
+                "<div class='k'>CREATIVE DIRECTION / TOO LONG</div><h1>SHORTEN IT.</h1>"
+                f"<p>Creative Direction is {len(direction)} characters. The current limit is {_MAX_CREATIVE_DIRECTION_CHARS}. "
+                "Shorten the brief before Material Eye runs, so no analysis tokens are wasted.</p>"
+                "<p><a href='/studio/new'>TRY AGAIN</a></p>"
+            ),
+            status_code=400,
+        )
+
     if difficulty_mode not in _DIFFICULTY_MODES:
         difficulty_mode = 'medium'
     if background_mode not in _BACKGROUND_MODES:
@@ -123,7 +136,7 @@ async def new_project_submit(
         state = state.model_copy(
             update={
                 'creative_intent': CreativeIntent(
-                    direction=creative_direction.strip() or None,
+                    direction=direction or None,
                     difficulty_mode=difficulty_mode,
                     background_mode=background_mode,
                 )
