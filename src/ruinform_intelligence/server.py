@@ -9,9 +9,38 @@ from .lab_postproduction import router as lab_postproduction_router
 from .live_api import router as live_transformations_router
 from .mvp_entry import router as mvp_entry_router
 from .render_api import router as render_router
-from .studio import router as studio_router
+from . import studio as studio_module
 from .studio_controls import router as studio_controls_router
 from .studio_evals import router as studio_evals_router
+
+
+studio_router = studio_module.router
+
+# Keep the two most-used Studio destinations visible on every Studio page.
+# This wrapper is intentionally UI-only: it does not touch session state or the
+# render/concept pipelines, so a user can always start fresh without hunting
+# for /studio/new in chat history.
+_original_studio_page = studio_module._page
+
+
+def _studio_page_with_global_nav(body: str, *, title: str = "RUINFORM STUDIO") -> str:
+    nav = """
+<style>
+.ruinform-global-nav{position:sticky;top:0;z-index:15;display:flex;justify-content:flex-end;gap:10px;padding:10px 0 16px;background:linear-gradient(#080807 72%,rgba(8,8,7,0));}
+.ruinform-global-nav a{display:inline-block;text-decoration:none;border:1px solid #5c5448;background:#12110f;color:#eee8dd;padding:10px 13px;font-size:12px;font-weight:700;letter-spacing:.08em;}
+.ruinform-global-nav a.primary{background:#e8e0d1;color:#111;border-color:#e8e0d1;}
+@media(max-width:760px){.ruinform-global-nav{justify-content:stretch}.ruinform-global-nav a{flex:1;text-align:center}}
+</style>
+<nav class='ruinform-global-nav' aria-label='Studio navigation'>
+<a href='/studio/evals'>EVAL LIBRARY</a>
+<a class='primary' href='/studio/new'>+ NEW PROJECT</a>
+</nav>
+"""
+    return _original_studio_page(nav + body, title=title)
+
+
+_studio_page_with_global_nav._ruinform_nav_wrapped = True
+studio_module._page = _studio_page_with_global_nav
 
 
 app.include_router(evidence_loop_router)
