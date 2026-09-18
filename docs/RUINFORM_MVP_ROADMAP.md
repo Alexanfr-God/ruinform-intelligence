@@ -92,6 +92,14 @@ Responsibilities:
 - use persistent Creative Intent
 - hand structured concept data forward
 
+Wave 1 learned quality gates now promoted into the prompt/Skill:
+- Signature Gesture
+- Concept Compression
+- Transformation Delta
+- Physical Story
+- WILD ≠ more parts
+- neutral-background object test
+
 Plugin-ready skill source:
 `skills/ruinform-design-brain/SKILL.md`
 
@@ -132,29 +140,29 @@ Current runtime uses the textual grammar. Next retrieval stage should select onl
 Structure and metadata rules:
 `docs/TASTE_LIBRARY/README.md`
 
-### Style Bible
+### Eval Library — current
 
-World / material / photographic language:
-`docs/RUINFORM_STYLE_BIBLE.md`
+A durable learning memory for real RUINFORM runs.
 
-### Eval Library — next
-
-A learning memory for real RUINFORM runs.
-
-Each evaluation should preserve:
+Each evaluation preserves a frozen snapshot of:
 - source set
-- four concepts
-- selected concept
-- render
-- idea score
-- render score
-- outcome: success / mixed / fail
-- GOOD notes
-- BAD notes
+- Creative Direction / difficulty / background
+- selected concept and review
+- accepted render
+- human outcome: success / mixed / fail
+- idea / WOW / physical credibility / source participation / collectible scores
+- would keep/build: yes / maybe / no
+- GOOD / BAD notes
 - reusable failure tags
-- next hypothesis
 
-Taste Library teaches **what good design is**. Eval Library teaches **where RUINFORM failed before**.
+Production storage uses PostgreSQL. Local development uses SQLite.
+
+Studio appends a low-friction `TEACH RUINFORM` panel to approved renders and exposes a filterable library at `/studio/evals`.
+
+Detailed contract:
+`docs/EVAL_LIBRARY.md`
+
+Taste Library teaches **what good design is**. Eval Library teaches **what happened when RUINFORM actually tried**.
 
 ### Build Brain — later
 
@@ -204,7 +212,7 @@ Learning: concept quality improved meaningfully; Visual Director / authorship is
 
 ### RFM-INT-0013 — LEARNING LOOP
 
-#### Wave 1 — Creative Intent controls
+#### Wave 1 — Creative Intent controls — COMPLETE
 
 - [x] persistent Creative Direction in ProjectState
 - [x] EASY / MEDIUM / WILD difficulty mode
@@ -213,16 +221,22 @@ Learning: concept quality improved meaningfully; Visual Director / authorship is
 - [x] Visual Director receives Creative Intent
 - [x] render prompt enforces object-first background contract
 - [x] keep background mode from changing the core concept
-- [ ] user validation tests
+- [x] user validation tests across EASY / MEDIUM / WILD and Clean / World A/B
+- [x] promote Wave 1 quality lessons into Design Brain / Skill
 
-#### Wave 2 — Eval Library v0
+#### Wave 2 — Eval Library v0 — CURRENT
 
-- [ ] persist every evaluation case
-- [ ] success / mixed / fail outcome
-- [ ] idea and render scores
-- [ ] GOOD / BAD notes
-- [ ] reusable failure tags
-- [ ] first Orbit Scribe evaluation record
+- [x] EvalRecord structured schema
+- [x] durable SQLite/PostgreSQL persistence
+- [x] success / mixed / fail outcome
+- [x] idea / WOW / physical / source / collectible scores
+- [x] YES / MAYBE / NO keep-build signal
+- [x] GOOD / BAD notes
+- [x] reusable failure tags
+- [x] Studio `TEACH RUINFORM` feedback form
+- [x] `/studio/evals` ALL / SUCCESS / MIXED / FAIL views
+- [ ] first production evaluation saved through UI
+- [ ] accumulate 10 controlled real evaluation cases
 
 #### Wave 3 — Smart retrieval
 
@@ -230,6 +244,7 @@ Learning: concept quality improved meaningfully; Visual Director / authorship is
 - [ ] semantic retrieval over Design Operators
 - [ ] diversity reranking
 - [ ] retrieve 2–4 Taste Cards only
+- [ ] retrieve 1–2 relevant past successes
 - [ ] retrieve 1–2 relevant past failure patterns
 - [ ] feed visual references when asset bucket is ready
 
@@ -241,7 +256,7 @@ For each case:
 - judge IDEA before rendering
 - render only the strongest concept
 - score IMAGE separately
-- record GOOD / BAD and failure tags
+- save Eval Library record
 
 Target: at least 6–7 of 10 sets produce one concept that the user genuinely wants to see or build.
 
@@ -291,7 +306,9 @@ We use ready-made infrastructure wherever possible and write custom code only ar
 - Background Mode changes presentation, not the object idea.
 - RUINFORM Design Brain should be reusable as a Skill/Plugin brain.
 - Taste Library first version = 10 distinct Design Operators.
-- Eval Library becomes the memory of success / mixed / failure patterns.
+- Eval Library is durable structured memory, not a markdown graveyard.
+- Success, mixed and failure cases stay in one dataset with filterable views.
+- Wave 3 retrieves only a small relevant memory pack, never the entire history.
 - Post-consumer / post-apocalyptic salvage economy is core product identity.
 - Hackathon uses closed/quota-controlled testing if necessary to protect API spend.
 - Waiting mini-game is recorded but postponed.
