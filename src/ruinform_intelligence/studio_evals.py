@@ -16,6 +16,8 @@ _eval_store = None
 _FAILURE_TAGS = [
     ("too_diy", "TOO DIY"),
     ("too_complex", "TOO COMPLEX"),
+    ("requires_too_much_craft_skill", "REQUIRES TOO MUCH CRAFT SKILL"),
+    ("overdesigned", "OVERDESIGNED"),
     ("weak_idea", "WEAK IDEA"),
     ("too_many_added_parts", "TOO MANY ADDED PARTS"),
     ("bad_render", "BAD RENDER"),
@@ -105,7 +107,7 @@ def _eval_form(session) -> str:
 <label>WHAT FAILED? — optional</label>
 <div>{tag_rows}</div>
 <label>GOOD — optional</label><textarea name='good_notes' rows='2' maxlength='1200' placeholder='Strong silhouette, source still recognizable, one clear gesture...'></textarea>
-<label>BAD — optional</label><textarea name='bad_notes' rows='2' maxlength='1200' placeholder='Too DIY, impossible physics, generic support geometry...'></textarea>
+<label>BAD — optional</label><textarea name='bad_notes' rows='2' maxlength='1200' placeholder='Too DIY, too much craft skill, overdesigned, impossible physics...'></textarea>
 <button type='submit'>SAVE TO EVAL LIBRARY</button>
 </form>
 <p><a href='/studio/evals'>OPEN EVAL LIBRARY</a></p>
