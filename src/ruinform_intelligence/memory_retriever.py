@@ -9,7 +9,7 @@ from .eval_models import EvalRecord
 from .eval_store import create_eval_store
 from .idea_store import IdeaBatch, create_idea_store
 from .models import ProjectState
-from .taste_library import TasteLibraryError, _read_json, load_design_brain_runtime_context, load_taste_card_catalog
+from .taste_library import _read_json, load_design_brain_runtime_context, load_taste_card_catalog
 
 
 _STOPWORDS = {
@@ -19,23 +19,48 @@ _STOPWORDS = {
     "more", "less", "very", "main", "visual", "art", "artwork", "thing", "parts", "part",
 }
 
-# Small material/action synonym graph. This is intentionally transparent and deterministic.
-# When the library grows beyond a few dozen cards this layer can be supplemented by embeddings
-# without changing the public retrieval contract.
-_SYNONYM_GROUPS = [
-    {"wood", "wooden", "timber", "board", "boards", "plank", "planks", "log", "branch", "branches", "bark", "tree"},
-    {"metal", "steel", "iron", "wire", "rod", "rods", "bolt", "bolts", "nut", "nuts", "washer", "washers", "fastener", "fasteners", "screw", "screws"},
-    {"light", "lighting", "lamp", "bulb", "led", "flashlight", "illuminated", "glow", "luminous", "shadow"},
-    {"glass", "bottle", "jar", "vessel", "transparent", "translucent", "diffuser", "acrylic"},
-    {"fabric", "textile", "plush", "cord", "rope", "thread", "line", "string", "soft"},
-    {"frame", "picture", "print", "poster", "panel", "canvas", "wall"},
-    {"move", "moving", "kinetic", "pivot", "rotate", "rotation", "hinge", "lever", "slider", "slide", "pull", "control", "balance"},
-    {"cut", "cutting", "remove", "carve", "open", "split", "reveal", "void", "negative", "space"},
-    {"repeat", "repetition", "array", "stack", "stacked", "sequence", "rhythm", "multiple"},
-    {"bend", "bending", "curve", "curved", "coil", "spring", "loop", "wrap", "wrapped", "flexible"},
-    {"functional", "utility", "useful", "function", "holder", "stand", "support", "shelf"},
-    {"sculpture", "sculptural", "figure", "figurative", "character", "portrait", "silhouette"},
-]
+# Retriever v2 deliberately does NOT expand one token into every synonym in a group.
+# A semantic family can contribute at most once to a field score. This prevents a single
+# generic word such as "metal" from becoming nine synthetic overlaps like
+# steel/wire/rod/bolt/nut/washer/fastener/screw.
+_SOURCE_FAMILIES: dict[str, set[str]] = {
+    "wheeled_frame": {"tricycle", "bicycle", "bike", "cycle", "wheeled", "wheel", "wheels", "rideon", "ride", "pedal", "pedals"},
+    "linked_chain": {"chain", "chains", "link", "links", "linked"},
+    "flexible_sheet": {"leather", "hide", "offcut", "offcuts", "sheet", "sheets", "scrap", "scraps", "fabric", "textile", "cloth"},
+    "radial_canopy": {"umbrella", "umbrellas", "canopy", "parasol", "rib", "ribs"},
+    "wood_mass": {"wood", "wooden", "timber", "plank", "planks", "board", "boards", "log", "branch", "branches", "bark"},
+    "transparent_vessel": {"glass", "bottle", "bottles", "jar", "jars", "vessel", "acrylic"},
+    "light_source": {"light", "lighting", "lamp", "lamps", "bulb", "bulbs", "led", "leds", "flashlight"},
+    "frame_panel": {"frame", "frames", "picture", "print", "poster", "panel", "panels", "canvas"},
+}
+
+_BEHAVIOR_GROUPS: dict[str, set[str]] = {
+    "articulated": {"chain", "link", "links", "hinge", "joint", "joints", "articulated"},
+    "flexible": {"flexible", "soft", "bend", "bending", "curve", "curved", "coil", "coiled", "loop", "wrap", "wrapped", "fold", "folded"},
+    "rigid_frame": {"frame", "rod", "rods", "bar", "bars", "shaft", "axle", "bracket", "support", "spine"},
+    "radial": {"radial", "wheel", "wheels", "umbrella", "canopy", "rib", "ribs", "spoke", "spokes"},
+    "translucent": {"transparent", "translucent", "glass", "acrylic", "diffuser"},
+    "surface_sheet": {"sheet", "sheets", "panel", "panels", "fabric", "leather", "hide", "canopy"},
+}
+
+_OPERATOR_GROUPS: dict[str, set[str]] = {
+    "subtractive_reveal": {"cut", "cutting", "remove", "removed", "carve", "open", "split", "reveal", "revealed", "void", "negative"},
+    "kinetic_rotation": {"move", "moving", "kinetic", "pivot", "rotate", "rotation", "turn", "turning", "spin", "hinge", "slider", "slide"},
+    "tension_balance": {"tension", "tensioned", "balance", "balanced", "suspend", "suspended", "hang", "hanging", "counterweight", "pull"},
+    "repetition": {"repeat", "repeated", "repetition", "array", "stack", "stacked", "sequence", "rhythm", "multiple"},
+    "illumination": {"light", "lighting", "lamp", "bulb", "led", "glow", "luminous", "shadow", "project", "projection"},
+    "functional_support": {"functional", "utility", "useful", "holder", "stand", "support", "shelf", "bookend", "book", "storage", "valet"},
+    "fold_wrap_lace": {"fold", "folded", "wrap", "wrapped", "lace", "laced", "stitch", "stitched", "sew", "sewn"},
+    "compression_capture": {"compress", "compressed", "clamp", "clamped", "capture", "captured", "pin", "pinned", "cradle"},
+}
+
+_GENERIC_TOKENS = {
+    "black", "brown", "pink", "silver", "metal", "steel", "iron", "small", "large", "medium", "open",
+    "dark", "lightweight", "piece", "pieces", "item", "items", "section", "assembly",
+}
+
+_EVAL_MIN_MATCH = 30.0
+_SHORTLIST_MIN_MATCH = 35.0
 
 
 @dataclass(frozen=True)
@@ -44,16 +69,31 @@ class RetrievalPack:
     trace: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class QuerySignature:
+    text: str
+    source_tokens: frozenset[str]
+    context_tokens: frozenset[str]
+    all_tokens: frozenset[str]
+    source_families: frozenset[str]
+    behaviors: frozenset[str]
+    operators: frozenset[str]
+
+
+@dataclass(frozen=True)
+class MatchResult:
+    score: float
+    reasons: tuple[str, ...]
+    components: dict[str, float]
+    strong_signal: bool
+
+
 def _tokenize(value: str | None) -> set[str]:
+    """Return exact normalized tokens only; never synonym-expand them."""
     if not value:
         return set()
     words = set(re.findall(r"[a-zA-Z0-9_]+", value.lower().replace("-", " ")))
-    words = {word for word in words if len(word) > 2 and word not in _STOPWORDS}
-    expanded = set(words)
-    for group in _SYNONYM_GROUPS:
-        if words & group:
-            expanded.update(group)
-    return expanded
+    return {word for word in words if len(word) > 2 and word not in _STOPWORDS}
 
 
 def _flatten_text(value: Any) -> str:
@@ -68,56 +108,151 @@ def _flatten_text(value: Any) -> str:
     return str(value)
 
 
-def _project_query(state: ProjectState, user_intent: str | None, mode: str) -> tuple[str, set[str]]:
-    pieces: list[str] = [mode, state.creative_intent.difficulty_mode, state.creative_intent.direction or "", user_intent or ""]
+def _group_hits(tokens: set[str] | frozenset[str], groups: dict[str, set[str]]) -> set[str]:
+    return {name for name, members in groups.items() if tokens & members}
+
+
+def _non_generic(tokens: set[str] | frozenset[str]) -> set[str]:
+    return set(tokens) - _GENERIC_TOKENS
+
+
+def _ratio_hits(left: set[str] | frozenset[str], right: set[str] | frozenset[str], *, cap: int = 3) -> tuple[float, set[str]]:
+    hits = _non_generic(left) & _non_generic(right)
+    if not hits:
+        return 0.0, set()
+    return min(1.0, len(hits) / max(1, cap)), hits
+
+
+def _group_ratio(query_groups: set[str] | frozenset[str], candidate_groups: set[str] | frozenset[str], *, cap: int = 2) -> tuple[float, set[str]]:
+    hits = set(query_groups) & set(candidate_groups)
+    if not hits:
+        return 0.0, set()
+    return min(1.0, len(hits) / max(1, min(cap, len(query_groups) or 1))), hits
+
+
+def _project_query(state: ProjectState, user_intent: str | None, mode: str) -> QuerySignature:
+    source_parts: list[str] = []
+    context_parts: list[str] = [
+        mode,
+        state.creative_intent.difficulty_mode,
+        state.creative_intent.direction or "",
+        user_intent or "",
+    ]
     for material in state.materials:
-        pieces.append(material.display_name)
+        source_parts.append(material.display_name)
         for observation in material.observations:
-            pieces.append(observation.label)
-    pieces.extend(state.constraints.tools_available)
-    pieces.extend(state.constraints.skills)
-    text = " | ".join(piece for piece in pieces if piece)
-    return text, _tokenize(text)
+            source_parts.append(observation.label)
+    context_parts.extend(state.constraints.tools_available)
+    context_parts.extend(state.constraints.skills)
+
+    source_text = " | ".join(piece for piece in source_parts if piece)
+    context_text = " | ".join(piece for piece in context_parts if piece)
+    source_tokens = frozenset(_tokenize(source_text))
+    context_tokens = frozenset(_tokenize(context_text))
+    all_tokens = frozenset(set(source_tokens) | set(context_tokens))
+    return QuerySignature(
+        text=" | ".join(piece for piece in [source_text, context_text] if piece),
+        source_tokens=source_tokens,
+        context_tokens=context_tokens,
+        all_tokens=all_tokens,
+        source_families=frozenset(_group_hits(source_tokens, _SOURCE_FAMILIES)),
+        behaviors=frozenset(_group_hits(all_tokens, _BEHAVIOR_GROUPS)),
+        operators=frozenset(_group_hits(context_tokens, _OPERATOR_GROUPS)),
+    )
 
 
-def _overlap_score(query_tokens: set[str], text: str, weight: float = 1.0) -> float:
-    if not query_tokens:
-        return 0.0
-    return weight * len(query_tokens & _tokenize(text))
+def _memory_match(
+    query: QuerySignature,
+    *,
+    source_text: str,
+    concept_text: str,
+    difficulty_match: bool = False,
+) -> MatchResult:
+    source_tokens = frozenset(_tokenize(source_text))
+    concept_tokens = frozenset(_tokenize(concept_text))
+    all_candidate_tokens = frozenset(set(source_tokens) | set(concept_tokens))
+
+    exact_source_ratio, exact_source_hits = _ratio_hits(query.source_tokens, source_tokens, cap=3)
+    context_ratio, context_hits = _ratio_hits(query.context_tokens, concept_tokens, cap=3)
+
+    source_family_ratio, source_family_hits = _group_ratio(
+        query.source_families,
+        _group_hits(source_tokens, _SOURCE_FAMILIES),
+        cap=2,
+    )
+    behavior_ratio, behavior_hits = _group_ratio(
+        query.behaviors,
+        _group_hits(all_candidate_tokens, _BEHAVIOR_GROUPS),
+        cap=2,
+    )
+    operator_ratio, operator_hits = _group_ratio(
+        query.operators,
+        _group_hits(concept_tokens, _OPERATOR_GROUPS),
+        cap=2,
+    )
+
+    components = {
+        "exact_source": round(30.0 * exact_source_ratio, 2),
+        "source_family": round(30.0 * source_family_ratio, 2),
+        "behavior": round(15.0 * behavior_ratio, 2),
+        "operator": round(15.0 * operator_ratio, 2),
+        "direction": round(5.0 * context_ratio, 2),
+        "difficulty": 5.0 if difficulty_match else 0.0,
+    }
+    score = min(100.0, round(sum(components.values()), 2))
+
+    reasons: list[str] = []
+    if exact_source_hits:
+        reasons.append("exact source: " + ", ".join(sorted(exact_source_hits)[:4]))
+    if source_family_hits:
+        reasons.append("source family: " + ", ".join(sorted(source_family_hits)))
+    if behavior_hits:
+        reasons.append("behavior: " + ", ".join(sorted(behavior_hits)))
+    if operator_hits:
+        reasons.append("operator: " + ", ".join(sorted(operator_hits)))
+    if context_hits:
+        reasons.append("direction: " + ", ".join(sorted(context_hits)[:4]))
+    if difficulty_match:
+        reasons.append("same difficulty")
+
+    strong_signal = bool(exact_source_hits or source_family_hits or operator_hits)
+    return MatchResult(score=score, reasons=tuple(reasons), components=components, strong_signal=strong_signal)
 
 
-def _select_taste_cards(query_tokens: set[str], difficulty: str, *, limit: int = 3) -> list[dict[str, Any]]:
-    catalog = list(load_taste_card_catalog())
-    light_query = bool(query_tokens & _tokenize("light lamp led bulb flashlight shadow illuminated"))
-    scored: list[tuple[float, str, dict[str, Any]]] = []
-    for card in catalog:
-        score = 0.0
-        score += _overlap_score(query_tokens, _flatten_text(card.get("tags")), 3.0)
-        score += _overlap_score(query_tokens, _flatten_text(card.get("materials")), 2.5)
-        score += _overlap_score(query_tokens, _flatten_text(card.get("summary")), 1.7)
-        score += _overlap_score(query_tokens, _flatten_text(card.get("learn")), 1.2)
-        score += _overlap_score(query_tokens, _flatten_text(card.get("operator")), 1.5)
-        score += _overlap_score(query_tokens, _flatten_text(card.get("core_formula")), 1.0)
-        card_difficulty = str(card.get("difficulty", "")).lower()
-        if difficulty in card_difficulty:
-            score += 1.25
-        card_text = _flatten_text(card)
-        if not light_query and _tokenize(card_text) & _tokenize("lamp light lighting bulb led"):
-            score -= 1.0
-        # Stable tie-break by card id keeps tests deterministic.
-        scored.append((score, str(card.get("id", "")), card))
+def _taste_match(query: QuerySignature, card: dict[str, Any], difficulty: str) -> MatchResult:
+    materials = _flatten_text(card.get("materials"))
+    concept = " | ".join(
+        [
+            _flatten_text(card.get("tags")),
+            _flatten_text(card.get("summary")),
+            _flatten_text(card.get("learn")),
+            _flatten_text(card.get("operator")),
+            _flatten_text(card.get("core_formula")),
+        ]
+    )
+    card_difficulty = str(card.get("difficulty", "")).lower()
+    return _memory_match(
+        query,
+        source_text=materials,
+        concept_text=concept,
+        difficulty_match=difficulty in card_difficulty,
+    )
 
-    scored.sort(key=lambda row: (-row[0], row[1]))
-    # Even when lexical overlap is weak, three different operators are still more useful
-    # than dumping the entire library into Design Brain.
-    return [row[2] for row in scored[: max(2, min(4, limit))]]
+
+def _select_taste_cards(query: QuerySignature, difficulty: str, *, limit: int = 3) -> list[tuple[MatchResult, dict[str, Any]]]:
+    scored: list[tuple[MatchResult, str, dict[str, Any]]] = []
+    for card in load_taste_card_catalog():
+        match = _taste_match(query, card, difficulty)
+        scored.append((match, str(card.get("id", "")), card))
+    scored.sort(key=lambda row: (-row[0].score, row[1]))
+    count = max(2, min(4, limit))
+    return [(match, card) for match, _, card in scored[:count]]
 
 
 def _eval_text(record: EvalRecord) -> str:
     candidate = record.concept_snapshot or {}
     return " | ".join(
         [
-            " ".join(record.source_items),
             record.creative_direction or "",
             record.candidate_name,
             _flatten_text(candidate.get("category")),
@@ -132,25 +267,27 @@ def _eval_text(record: EvalRecord) -> str:
     )
 
 
-def _select_evals(query_tokens: set[str], difficulty: str, records: Iterable[EvalRecord]) -> list[tuple[float, EvalRecord]]:
-    buckets: dict[str, list[tuple[float, EvalRecord]]] = {"success": [], "mixed": [], "fail": []}
+def _select_evals(query: QuerySignature, difficulty: str, records: Iterable[EvalRecord]) -> list[tuple[MatchResult, EvalRecord]]:
+    buckets: dict[str, list[tuple[MatchResult, EvalRecord]]] = {"success": [], "mixed": [], "fail": []}
     for record in records:
-        source_score = _overlap_score(query_tokens, " ".join(record.source_items), 4.0)
-        concept_score = _overlap_score(query_tokens, _eval_text(record), 1.25)
-        difficulty_bonus = 0.75 if record.difficulty_mode == difficulty else 0.0
-        score = source_score + concept_score + difficulty_bonus
-        if score <= 0:
+        match = _memory_match(
+            query,
+            source_text=" ".join(record.source_items),
+            concept_text=_eval_text(record),
+            difficulty_match=record.difficulty_mode == difficulty,
+        )
+        if match.score < _EVAL_MIN_MATCH or not match.strong_signal:
             continue
-        buckets[record.outcome].append((score, record))
+        buckets[record.outcome].append((match, record))
 
-    selected: list[tuple[float, EvalRecord]] = []
-    # Human labels are not a leaderboard. Retrieve the strongest relevant example from
-    # each outcome so Design Brain sees positive patterns, boundaries and warnings.
+    selected: list[tuple[MatchResult, EvalRecord]] = []
+    # One example per human outcome keeps the memory balanced: positive relationship,
+    # boundary case, warning. Scores are normalized match confidence, not quality scores.
     for outcome in ("success", "mixed", "fail"):
-        rows = sorted(buckets[outcome], key=lambda row: (-row[0], row[1].created_at_iso))
+        rows = sorted(buckets[outcome], key=lambda row: (-row[0].score, row[1].created_at_iso))
         if rows:
             selected.append(rows[0])
-    return sorted(selected, key=lambda row: -row[0])[:3]
+    return sorted(selected, key=lambda row: -row[0].score)[:3]
 
 
 def _shortlisted_rows(batch: IdeaBatch) -> list[dict[str, Any]]:
@@ -168,17 +305,22 @@ def _shortlisted_rows(batch: IdeaBatch) -> list[dict[str, Any]]:
     return result
 
 
-def _select_shortlisted(query_tokens: set[str], batches: Iterable[IdeaBatch]) -> list[tuple[float, IdeaBatch, dict[str, Any]]]:
-    scored: list[tuple[float, IdeaBatch, dict[str, Any]]] = []
+def _select_shortlisted(query: QuerySignature, batches: Iterable[IdeaBatch]) -> list[tuple[MatchResult, IdeaBatch, dict[str, Any]]]:
+    scored: list[tuple[MatchResult, IdeaBatch, dict[str, Any]]] = []
     for batch in batches:
-        source_score = _overlap_score(query_tokens, " ".join(batch.source_items), 3.0)
         for row in _shortlisted_rows(batch):
-            candidate = row.get("candidate", {})
-            candidate_text = _flatten_text(candidate)
-            score = source_score + _overlap_score(query_tokens, candidate_text, 1.0)
-            if score > 0:
-                scored.append((score, batch, row))
-    scored.sort(key=lambda row: (-row[0], row[1].created_at_iso))
+            candidate = row.get("candidate", {}) if isinstance(row.get("candidate"), dict) else {}
+            match = _memory_match(
+                query,
+                source_text=" ".join(batch.source_items),
+                concept_text=_flatten_text(candidate),
+                difficulty_match=batch.difficulty_mode == "medium" if not batch.difficulty_mode else False,
+            )
+            # Shortlists are unjudged and therefore need a stronger relevance floor than
+            # human-rated examples. Generic material-family coincidence is not enough.
+            if match.score >= _SHORTLIST_MIN_MATCH and match.strong_signal:
+                scored.append((match, batch, row))
+    scored.sort(key=lambda row: (-row[0].score, row[1].created_at_iso))
     return scored[:2]
 
 
@@ -188,15 +330,25 @@ def _load_lessons() -> list[dict[str, Any]]:
     return [lesson for lesson in lessons or [] if isinstance(lesson, dict)]
 
 
-def _select_lessons(query_tokens: set[str]) -> list[dict[str, Any]]:
-    scored: list[tuple[int, dict[str, Any]]] = []
+def _select_lessons(query: QuerySignature) -> list[dict[str, Any]]:
+    """Lessons are conditional on stated intent, not merely on owning a suggestive object.
+
+    A bicycle or umbrella must not trigger an interaction lesson just because it can move.
+    The user direction/context needs to contain the relevant operator signal.
+    """
+    context_tokens = set(query.context_tokens)
+    context_operators = _group_hits(context_tokens, _OPERATOR_GROUPS)
+    scored: list[tuple[int, str, dict[str, Any]]] = []
     for lesson in _load_lessons():
         cue_tokens = _tokenize(_flatten_text(lesson.get("cues")))
-        overlap = len(query_tokens & cue_tokens)
-        if overlap:
-            scored.append((overlap, lesson))
-    scored.sort(key=lambda row: (-row[0], str(row[1].get("id", ""))))
-    return [row[1] for row in scored[:2]]
+        exact = len(context_tokens & cue_tokens)
+        cue_operators = _group_hits(cue_tokens, _OPERATOR_GROUPS)
+        semantic = len(context_operators & cue_operators)
+        score = exact * 2 + semantic
+        if score > 0:
+            scored.append((score, str(lesson.get("id", "")), lesson))
+    scored.sort(key=lambda row: (-row[0], row[1]))
+    return [row[2] for row in scored[:2]]
 
 
 def _compact_eval(record: EvalRecord) -> str:
@@ -226,6 +378,14 @@ def _compact_shortlist(batch: IdeaBatch, row: dict[str, Any]) -> str:
     )
 
 
+def _trace_match(match: MatchResult) -> dict[str, Any]:
+    return {
+        "score": round(match.score, 1),
+        "reasons": list(match.reasons),
+        "components": match.components,
+    }
+
+
 def build_wave3_retrieval_context(
     *,
     state: ProjectState,
@@ -234,16 +394,17 @@ def build_wave3_retrieval_context(
     eval_records: Iterable[EvalRecord] | None = None,
     idea_batches: Iterable[IdeaBatch] | None = None,
 ) -> RetrievalPack:
-    """Retrieve a small, inspectable memory pack for one concept-generation request.
+    """Retrieve a small, inspectable Wave 3 memory pack using Retriever v2.
 
-    Design Brain receives only 2-4 Taste cards plus the most relevant human-rated
-    examples, conditional lessons and shortlisted hypotheses. Retrieval is intentionally
-    deterministic in v1 so we can audit why a memory was selected before adding semantic
-    embeddings at larger library scale.
+    V2 keeps retrieval deterministic but separates exact source evidence, semantic source
+    families, material behavior and transformation operators. Every semantic family can
+    score at most once per field, scores are normalized to 0-100, and weak generic matches
+    are filtered before they can steer Design Brain.
     """
 
-    query_text, query_tokens = _project_query(state, user_intent, mode)
-    taste_cards = _select_taste_cards(query_tokens, state.creative_intent.difficulty_mode, limit=3)
+    query = _project_query(state, user_intent, mode)
+    taste_matches = _select_taste_cards(query, state.creative_intent.difficulty_mode, limit=3)
+    taste_cards = [card for _, card in taste_matches]
     taste_ids = tuple(str(card.get("id")) for card in taste_cards)
     design_context = load_design_brain_runtime_context(taste_ids)
 
@@ -251,14 +412,14 @@ def build_wave3_retrieval_context(
         records = list(eval_records) if eval_records is not None else create_eval_store().list_recent(limit=40)
     except Exception:
         records = []
-    evals = _select_evals(query_tokens, state.creative_intent.difficulty_mode, records)
+    evals = _select_evals(query, state.creative_intent.difficulty_mode, records)
 
     try:
         batches = list(idea_batches) if idea_batches is not None else create_idea_store().list_recent(limit=80)
     except Exception:
         batches = []
-    shortlisted = _select_shortlisted(query_tokens, batches)
-    lessons = _select_lessons(query_tokens)
+    shortlisted = _select_shortlisted(query, batches)
+    lessons = _select_lessons(query)
 
     memory_sections: list[str] = [design_context]
     if evals:
@@ -287,21 +448,37 @@ def build_wave3_retrieval_context(
         "- SUCCESS examples teach transferable positive relationships, not silhouettes to copy.\n"
         "- MIXED examples teach boundary conditions. FAIL examples teach warnings.\n"
         "- Shortlisted ideas are unjudged hypotheses; they may inspire but must never become training truth.\n"
+        "- Match scores measure retrieval relevance only; they are never quality scores.\n"
         "- If a retrieved memory conflicts with the current source matter, ignore the memory.\n"
         "- Do not mention retrieved examples to the user; produce fresh concepts from the current source."
     )
 
     trace = {
-        "version": "wave3_retriever_v1",
-        "strategy": "deterministic_hybrid_lexical",
-        "query_preview": query_text[:500],
+        "version": "wave3_retriever_v2",
+        "strategy": "deterministic_field_aware_normalized",
+        "query_preview": query.text[:500],
+        "query_signature": {
+            "source_families": sorted(query.source_families),
+            "behaviors": sorted(query.behaviors),
+            "operators": sorted(query.operators),
+        },
         "taste_cards": [
-            {"id": card.get("id"), "title": card.get("title"), "operator": card.get("operator")}
-            for card in taste_cards
+            {
+                "id": card.get("id"),
+                "title": card.get("title"),
+                "operator": card.get("operator"),
+                **_trace_match(match),
+            }
+            for match, card in taste_matches
         ],
         "evals": [
-            {"eval_id": record.eval_id, "outcome": record.outcome, "candidate_name": record.candidate_name, "score": round(score, 2)}
-            for score, record in evals
+            {
+                "eval_id": record.eval_id,
+                "outcome": record.outcome,
+                "candidate_name": record.candidate_name,
+                **_trace_match(match),
+            }
+            for match, record in evals
         ],
         "lessons": [{"id": lesson.get("id"), "title": lesson.get("title")} for lesson in lessons],
         "shortlisted_ideas": [
@@ -309,9 +486,9 @@ def build_wave3_retrieval_context(
                 "batch_id": batch.batch_id,
                 "candidate_id": (row.get("candidate") or {}).get("candidate_id") if isinstance(row.get("candidate"), dict) else None,
                 "name": (row.get("candidate") or {}).get("name") if isinstance(row.get("candidate"), dict) else None,
-                "score": round(score, 2),
+                **_trace_match(match),
             }
-            for score, batch, row in shortlisted
+            for match, batch, row in shortlisted
         ],
     }
     return RetrievalPack(prompt_context="\n\n".join(memory_sections), trace=trace)
