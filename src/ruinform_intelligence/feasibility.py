@@ -84,36 +84,39 @@ async def review_candidate_pool(
     if effort not in {"low", "medium", "high"}:
         effort = "high"
 
-    response = await client.responses.create(
-        model=model,
-        reasoning={"effort": effort},
-        instructions=load_feasibility_prompt(),
-        input=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": (
-                            "Review every future form against the physical project state.\n\n"
-                            f"MODE POLICY: {_mode_policy(concept_mode)}\n\n"
-                            f"Project state: {compact_state_json(state)}\n\n"
-                            f"WAVE 3 RETRIEVAL TRACE: {_compact_retrieval_trace(retrieval_trace)}\n\n"
-                            f"Candidate pool: {pool.model_dump_json()}"
-                        ),
-                    }
-                ],
-            }
-        ],
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": "ruinform_feasibility_reviews",
-                "strict": True,
-                "schema": ReviewBatch.model_json_schema(),
-            }
-        },
-    )
+    try:
+        response = await client.responses.create(
+            model=model,
+            reasoning={"effort": effort},
+            instructions=load_feasibility_prompt(),
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": (
+                                "Review every future form against the physical project state.\n\n"
+                                f"MODE POLICY: {_mode_policy(concept_mode)}\n\n"
+                                f"Project state: {compact_state_json(state)}\n\n"
+                                f"WAVE 3 RETRIEVAL TRACE: {_compact_retrieval_trace(retrieval_trace)}\n\n"
+                                f"Candidate pool: {pool.model_dump_json()}"
+                            ),
+                        }
+                    ],
+                }
+            ],
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "ruinform_feasibility_reviews",
+                    "strict": True,
+                    "schema": ReviewBatch.model_json_schema(),
+                }
+            },
+        )
+    except Exception as exc:
+        raise FeasibilityError(f"Feasibility Critic request failed: {exc}") from exc
 
     if not response.output_text:
         raise FeasibilityError("Feasibility Critic returned no reviews")
