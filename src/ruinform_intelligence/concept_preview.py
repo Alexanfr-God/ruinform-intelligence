@@ -89,7 +89,11 @@ def _instructions(mode: str, memory_context: str | None = None) -> str:
         + "MEMORY INFLUENCE CAP: retrieved memory may contribute an operator or warning, but it must not dictate category, silhouette, mechanism recipe, or the number of source objects used. "
         + "At least two concepts must emerge primarily from the current source geometry/material behavior. A conditional lesson such as interaction readability applies only if a concept naturally becomes interactive. "
         + "SOURCE ECONOMY: use the smallest coherent subset that makes the strongest object. Intentional omission is better than token participation. "
-        + "DIVERSITY GATE: no more than two concepts may share the same dominant mechanism family; at least one concept must have no moving mechanism unless the user explicitly requests motion."
+        + "DIVERSITY CONTRACT: across the four futures use at least three genuinely different transformation families. Category labels do not count as diversity. "
+        + "Do not return four products that all depend on the same dominant source, the same tension/balance trick, or the same mechanism with different purposes. "
+        + "No more than two concepts may share one dominant mechanism family. At least one concept must have no moving mechanism unless the user explicitly requests motion. "
+        + "When three or more source items exist, vary source subsets across the batch; if one object is the obvious visual anchor, do not automatically make it the hero of all four futures. "
+        + "Before returning, compare the four concepts side by side. If two are siblings, keep the stronger one and replace the weaker with a different operator family."
         + "\n\nCURRENT MODE: "
         + mode.upper()
         + "\nCandidate IDs must be exactly preview_01 through preview_04. "
@@ -135,7 +139,8 @@ def _source_participation_contract(state: ProjectState) -> str:
             "No concept is required to use all source items. A two-object idea that is clear and memorable is better than a four-object idea with token roles. "
             "Across the four-concept batch, give each source item at least one meaningful chance when its geometry or material behavior suggests one, but intentional omission is valid. "
             "Every used source must carry a necessary structural, functional, material, spatial, or narrative role. If removing a source makes the concept stronger, omit it and briefly explain the omission in unresolved_dependencies. "
-            "When there are three or four source items, normally at least two concepts should use fewer than the full set unless Creative Direction explicitly asks to combine everything."
+            "When there are three or four source items, normally at least two concepts should use fewer than the full set unless Creative Direction explicitly asks to combine everything. "
+            "Also vary which source carries the signature gesture: do not make the same obvious source the hero in all four futures merely because it is visually large or familiar."
         )
     return (
         f"There are {count} source items. Do not force all of them into every concept. Each concept should use a coherent subset chosen for the strongest single gesture, "
@@ -144,8 +149,9 @@ def _source_participation_contract(state: ProjectState) -> str:
 
 
 def _fallback_review(item: PreviewCandidate, *, used_count: int, total_count: int) -> FeasibilityReview:
-    coverage_ratio = used_count / max(1, total_count)
-    material_fit_score = round(100 * coverage_ratio)
+    # The fallback must not reward raw source-count coverage. It preserves the
+    # Design Brain hints and treats material fit as a neutral, conservative score.
+    material_fit_score = 65 if used_count else 20
     return FeasibilityReview(
         candidate_id=item.candidate.candidate_id,
         status="pass",
@@ -158,7 +164,7 @@ def _fallback_review(item: PreviewCandidate, *, used_count: int, total_count: in
         value_potential_score=item.value_hint,
         reasons=[
             "Pre-render critic unavailable; showing Design Brain preview with conservative fallback scoring.",
-            f"Source participation: {used_count}/{total_count} identified source items have an explicit concept role.",
+            f"Source participation: {used_count}/{total_count} identified source items have an explicit concept role; coverage is not treated as quality.",
         ],
         required_changes=[],
         unresolved_dependencies=list(item.candidate.unresolved_dependencies),
@@ -244,6 +250,10 @@ async def generate_concept_preview(
                 "Authorship should come from geometry, negative space, tension, repetition, balance, material contrast, or an unusually clear functional relationship — "
                 "not from grime, signage, random hardware, or cinematic background. Reject school-project logic where one object is merely taped, clipped, or bracketed next to another. "
                 "Supporting hardware is allowed only when it enables the source-driven idea and must remain visually subordinate.\n\n"
+                "BATCH SELF-CHECK BEFORE RETURNING:\n"
+                "Read all four proposals as one set. They must differ in the primary transformation move, not merely in category or use case. "
+                "If three proposals all revolve around the umbrella, wheel, bottle, lamp, or another obvious hero source in the same role, replace at least one with a future where another source relationship leads. "
+                "If three proposals all rely on tension, balance, suspension, or kinetic linkage, replace at least one with subtraction, recomposition, latent-form discovery, repetition, surface/material transformation, or a simple functional reassignment.\n\n"
                 "The product goal is not generic upcycling. Create desirable post-consumer artifacts with visible source provenance, "
                 "strong silhouette, one authored transformation gesture, and believable material logic. "
                 "The Wave 3 memory pack is evidence and design grammar, never a catalogue of objects to reproduce."
@@ -367,7 +377,7 @@ async def generate_concept_preview(
     reviewed.sort(key=lambda value: value.rank_score, reverse=True)
     retrieval_trace = dict(memory.trace)
     retrieval_trace["pre_render_critic"] = {
-        "version": "wave3_pre_render_critic_v1",
+        "version": "wave3_pre_render_critic_v2",
         "reasoning_effort": os.getenv("RUINFORM_PRE_RENDER_CRITIC_REASONING", "low"),
         "error": critic_error,
         "candidates": critic_trace,
