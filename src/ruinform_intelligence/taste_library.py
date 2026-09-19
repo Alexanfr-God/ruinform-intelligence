@@ -82,12 +82,33 @@ def _compact_card(card: dict[str, Any]) -> str:
 
 
 @lru_cache(maxsize=1)
-def load_design_brain_runtime_context() -> str:
+def load_taste_card_catalog() -> tuple[dict[str, Any], ...]:
+    """Load the canonical Taste Library as structured cards for the Wave 3 retriever."""
+
+    index = _read_json("docs/TASTE_LIBRARY/index.json")
+    entries = index.get("cards") if isinstance(index, dict) else None
+    if not isinstance(entries, list) or not entries:
+        raise TasteLibraryError("Taste Library index contains no cards")
+
+    cards: list[dict[str, Any]] = []
+    for entry in entries:
+        if not isinstance(entry, dict) or not entry.get("path"):
+            continue
+        card = _read_json("docs/TASTE_LIBRARY/" + str(entry["path"]))
+        if isinstance(card, dict):
+            cards.append(card)
+    if not cards:
+        raise TasteLibraryError("Taste Library could not load any concept cards")
+    return tuple(cards)
+
+
+@lru_cache(maxsize=32)
+def load_design_brain_runtime_context(card_ids: tuple[str, ...] | None = None) -> str:
     """Return compact live RUINFORM knowledge for concept generation.
 
-    The source photographs remain the primary evidence. Taste cards are design operators,
-    not templates to copy. Keeping this context text-only is intentional for micro-v0;
-    canonical visual Taste Library assets will be retrieved after the image bucket is wired.
+    ``card_ids=None`` preserves the legacy behavior and loads all cards. Wave 3 passes a
+    small retrieved set, normally 2-4 cards, so Design Brain never needs to see the whole
+    growing library at once.
     """
 
     if os.getenv("RUINFORM_TASTE_LIBRARY_ENABLED", "1").strip().lower() in {
@@ -101,22 +122,19 @@ def load_design_brain_runtime_context() -> str:
     skill = _read_text("skills/ruinform-design-brain/SKILL.md")
     style = _read_text("docs/RUINFORM_STYLE_BIBLE.md")
     grammar = _read_text("docs/TASTE_LIBRARY/DESIGN_GRAMMAR.md")
-    index = _read_json("docs/TASTE_LIBRARY/index.json")
+    catalog = load_taste_card_catalog()
 
-    entries = index.get("cards") if isinstance(index, dict) else None
-    if not isinstance(entries, list) or not entries:
-        raise TasteLibraryError("Taste Library index contains no cards")
+    if card_ids is None:
+        selected = list(catalog)
+        selection_label = f"ALL {len(selected)} CARDS / LEGACY MODE"
+    else:
+        by_id = {str(card.get("id")): card for card in catalog}
+        selected = [by_id[card_id] for card_id in card_ids if card_id in by_id]
+        selection_label = f"RETRIEVED {len(selected)} OF {len(catalog)} CARDS"
 
-    cards: list[str] = []
-    for entry in entries:
-        if not isinstance(entry, dict) or not entry.get("path"):
-            continue
-        card = _read_json("docs/TASTE_LIBRARY/" + str(entry["path"]))
-        if isinstance(card, dict):
-            cards.append(_compact_card(card))
-
+    cards = [_compact_card(card) for card in selected]
     if not cards:
-        raise TasteLibraryError("Taste Library could not load any concept cards")
+        raise TasteLibraryError("Taste Library retrieval selected no valid concept cards")
 
     return (
         "RUINFORM LIVE KNOWLEDGE PACK\n"
@@ -127,7 +145,8 @@ def load_design_brain_runtime_context() -> str:
         + style
         + "\n\nDESIGN GRAMMAR:\n"
         + grammar
-        + "\n\nTASTE CARDS — TRANSFER OPERATORS, NEVER COPY OBJECTS:\n\n"
+        + f"\n\nTASTE CARD SELECTION: {selection_label}\n"
+        + "TASTE CARDS — TRANSFER OPERATORS, NEVER COPY OBJECTS:\n\n"
         + "\n\n---\n\n".join(cards)
         + "\n\nTASTE LIBRARY USAGE POLICY:\n"
         "- Source photographs and user intent outrank all examples.\n"

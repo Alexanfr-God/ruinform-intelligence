@@ -25,6 +25,70 @@ def _candidate_rows(item: IdeaBatch) -> list[dict]:
     return [row for row in rows if isinstance(row, dict)]
 
 
+def _retrieval_trace(item: IdeaBatch) -> dict:
+    trace = item.futures_snapshot.get("retrieval_trace", {})
+    return trace if isinstance(trace, dict) else {}
+
+
+def _memory_badges(item: IdeaBatch) -> str:
+    trace = _retrieval_trace(item)
+    if not trace:
+        return ""
+    taste = len(trace.get("taste_cards") or [])
+    evals = len(trace.get("evals") or [])
+    lessons = len(trace.get("lessons") or [])
+    shortlists = len(trace.get("shortlisted_ideas") or [])
+    return (
+        f"<span class='badge'>MEMORY: {taste} TASTE</span>"
+        f"<span class='badge'>{evals} EVAL</span>"
+        f"<span class='badge'>{lessons} LESSON</span>"
+        f"<span class='badge'>{shortlists} SHORTLIST</span>"
+    )
+
+
+def _memory_panel(item: IdeaBatch) -> str:
+    trace = _retrieval_trace(item)
+    if not trace:
+        return "<div class='panel'><div class='k'>WAVE 3 / MEMORY ROUTER</div><p class='muted'>This batch predates retrieval tracing.</p></div>"
+
+    taste_rows = trace.get("taste_cards") or []
+    eval_rows = trace.get("evals") or []
+    lesson_rows = trace.get("lessons") or []
+    shortlist_rows = trace.get("shortlisted_ideas") or []
+
+    taste = "".join(
+        f"<li><strong>{html.escape(str(row.get('id', '')))}</strong> — {html.escape(str(row.get('title', '')))} <span class='muted'>/{html.escape(str(row.get('operator', '')))}</span></li>"
+        for row in taste_rows if isinstance(row, dict)
+    ) or "<li class='muted'>none</li>"
+    evals = "".join(
+        f"<li><strong>{html.escape(str(row.get('outcome', '')).upper())}</strong> — {html.escape(str(row.get('candidate_name', '')))} <span class='muted'>relevance {html.escape(str(row.get('score', '')))}</span></li>"
+        for row in eval_rows if isinstance(row, dict)
+    ) or "<li class='muted'>none relevant</li>"
+    lessons = "".join(
+        f"<li><strong>{html.escape(str(row.get('id', '')))}</strong> — {html.escape(str(row.get('title', '')))}</li>"
+        for row in lesson_rows if isinstance(row, dict)
+    ) or "<li class='muted'>none triggered</li>"
+    shortlists = "".join(
+        f"<li>{html.escape(str(row.get('name', 'Unnamed idea')))} <span class='muted'>relevance {html.escape(str(row.get('score', '')))}</span></li>"
+        for row in shortlist_rows if isinstance(row, dict)
+    ) or "<li class='muted'>none relevant</li>"
+
+    strategy = html.escape(str(trace.get("strategy", "unknown")))
+    return f"""
+<div class='panel'>
+<div class='k'>WAVE 3 / MEMORY ROUTER</div>
+<p><span class='badge'>{html.escape(str(trace.get('version', 'wave3')))}</span><span class='badge'>{strategy}</span></p>
+<p class='muted'>Design Brain saw only this retrieved memory pack, not the whole library. Current source photos and Creative Direction still have priority.</p>
+<div class='grid'>
+<div><h2>TASTE / RETRIEVED</h2><ul>{taste}</ul></div>
+<div><h2>HUMAN EVALS</h2><ul>{evals}</ul></div>
+<div><h2>CONDITIONAL LESSONS</h2><ul>{lessons}</ul></div>
+<div><h2>SHORTLISTED / UNJUDGED</h2><ul>{shortlists}</ul></div>
+</div>
+</div>
+"""
+
+
 def _candidate_card(item: IdeaBatch, row: dict) -> str:
     candidate = row.get("candidate", {}) if isinstance(row.get("candidate"), dict) else {}
     review = row.get("review", {}) if isinstance(row.get("review"), dict) else {}
@@ -82,7 +146,7 @@ def _batch_card(item: IdeaBatch) -> str:
 <h2>4 FUTURES</h2>
 <p class='muted'>{source}</p>
 <p>{names_html}</p>
-<p><span class='badge'>{len(item.shortlisted_candidate_ids)} SHORTLISTED</span><span class='badge'>{len(item.rendered_candidate_ids)} RENDERED</span></p>
+<p><span class='badge'>{len(item.shortlisted_candidate_ids)} SHORTLISTED</span><span class='badge'>{len(item.rendered_candidate_ids)} RENDERED</span>{_memory_badges(item)}</p>
 <p><a href='/studio/ideas/{html.escape(item.batch_id)}'>OPEN IDEA BATCH</a> · <a href='/studio/{html.escape(item.session_id)}/concepts'>OPEN CURRENT PROJECT</a></p>
 </div>
 """
@@ -118,6 +182,7 @@ async def studio_idea_batch(batch_id: str) -> str:
 <h1>FOUR<br>FUTURES.</h1>
 <div class='panel'><div class='k'>SOURCE MATTER</div><p>{source}</p></div>
 <div class='panel'><span class='badge'>DIFFICULTY: {html.escape(item.difficulty_mode.upper())}</span><span class='badge'>BACKGROUND: {html.escape(item.background_mode.upper())}</span><p class='muted'><strong>Creative Direction:</strong> {direction}</p></div>
+{_memory_panel(item)}
 <div class='grid'>{cards}</div>
 <form method='post' action='/studio/ideas/{html.escape(item.batch_id)}/archive'><button class='secondary' type='submit'>ARCHIVE THIS BATCH</button></form>
 <p><a href='/studio/{html.escape(item.session_id)}/concepts'>OPEN CURRENT PROJECT</a> · <a href='/studio/ideas'>BACK TO IDEA ROOM</a></p>
