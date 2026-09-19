@@ -38,11 +38,23 @@ def _memory_badges(item: IdeaBatch) -> str:
     evals = len(trace.get("evals") or [])
     lessons = len(trace.get("lessons") or [])
     shortlists = len(trace.get("shortlisted_ideas") or [])
+    healing = trace.get("self_healing") if isinstance(trace.get("self_healing"), dict) else None
+    healing_badge = ""
+    if healing:
+        if healing.get("error"):
+            state = "HEAL ERROR"
+        elif healing.get("attempted"):
+            remaining = len(healing.get("remaining_rejects") or [])
+            state = f"HEALED / {remaining} REJECT" if remaining else "HEALED"
+        else:
+            state = "HEAL NOT NEEDED"
+        healing_badge = f"<span class='badge'>{html.escape(state)}</span>"
     return (
         f"<span class='badge'>MEMORY: {taste} TASTE</span>"
         f"<span class='badge'>{evals} EVAL</span>"
         f"<span class='badge'>{lessons} LESSON</span>"
         f"<span class='badge'>{shortlists} SHORTLIST</span>"
+        f"{healing_badge}"
     )
 
 
@@ -85,6 +97,91 @@ def _memory_panel(item: IdeaBatch) -> str:
 <div><h2>CONDITIONAL LESSONS</h2><ul>{lessons}</ul></div>
 <div><h2>SHORTLISTED / UNJUDGED</h2><ul>{shortlists}</ul></div>
 </div>
+</div>
+"""
+
+
+def _self_healing_panel(item: IdeaBatch) -> str:
+    trace = _retrieval_trace(item)
+    healing = trace.get("self_healing")
+    if not isinstance(healing, dict):
+        return ""
+
+    enabled = bool(healing.get("enabled"))
+    attempted = bool(healing.get("attempted"))
+    version = html.escape(str(healing.get("version", "wave3_self_healing")))
+    status_bits = [
+        f"<span class='badge'>{version}</span>",
+        f"<span class='badge'>{'ENABLED' if enabled else 'DISABLED'}</span>",
+        f"<span class='badge'>{'ATTEMPTED' if attempted else 'NOT NEEDED'}</span>",
+    ]
+
+    if healing.get("error"):
+        status_bits.append("<span class='badge'>FALLBACK</span>")
+
+    targets_html = ""
+    for row in healing.get("targets") or []:
+        if not isinstance(row, dict):
+            continue
+        candidate_id = html.escape(str(row.get("candidate_id", "")))
+        action = html.escape(str(row.get("action", "unknown")).upper())
+        before_name = html.escape(str(row.get("before_name", "unknown")))
+        after_name = html.escape(str(row.get("after_name", "not produced")))
+        before_status = html.escape(str(row.get("before_status", "unknown")).upper())
+        after_status = html.escape(str(row.get("after_status", "unknown")).upper())
+        remaining = row.get("remaining_required_changes") or []
+        remaining_html = ""
+        if remaining:
+            remaining_html = "<ul>" + "".join(
+                f"<li>{html.escape(str(change))}</li>" for change in remaining[:4]
+            ) + "</ul>"
+        targets_html += (
+            "<div class='card'>"
+            f"<div class='k'>{candidate_id} / {action}</div>"
+            f"<p><strong>{before_name}</strong> <span class='muted'>{before_status}</span><br>"
+            f"→ <strong>{after_name}</strong> <span class='muted'>{after_status}</span></p>"
+            f"{remaining_html}"
+            "</div>"
+        )
+
+    if not targets_html:
+        reason = html.escape(str(healing.get("reason", "No repair targets were needed.")))
+        targets_html = f"<p class='muted'>{reason}</p>"
+
+    error_html = ""
+    if healing.get("error"):
+        error_html = (
+            "<p class='warning'><strong>SELF-HEALING FALLBACK:</strong> "
+            f"{html.escape(str(healing.get('error')))}"
+            "</p>"
+        )
+    fallback = healing.get("fallback")
+    if fallback:
+        error_html += f"<p class='muted'>Fallback policy: {html.escape(str(fallback))}</p>"
+
+    remaining_rejects = healing.get("remaining_rejects") or []
+    remaining_html = ""
+    if remaining_rejects:
+        remaining_html = (
+            "<p class='warning'><strong>AFTER ONE PASS:</strong> still rejected — "
+            + html.escape(", ".join(str(value) for value in remaining_rejects))
+            + ". No recursive repair loop was started.</p>"
+        )
+    elif attempted and not healing.get("error"):
+        remaining_html = "<p><strong>AFTER ONE PASS:</strong> no REJECT slots remain.</p>"
+
+    policy = healing.get("policy")
+    policy_html = f"<p class='muted'>{html.escape(str(policy))}</p>" if policy else ""
+
+    return f"""
+<div class='panel'>
+<div class='k'>WAVE 3 / SELF-HEALING AUDIT</div>
+<p>{''.join(status_bits)}</p>
+<p class='muted'>This is the bounded text-only repair that runs before paid image generation. PASS ideas stay locked; flagged slots get at most one repair/replacement pass.</p>
+{error_html}
+<div class='grid'>{targets_html}</div>
+{remaining_html}
+{policy_html}
 </div>
 """
 
@@ -183,6 +280,7 @@ async def studio_idea_batch(batch_id: str) -> str:
 <div class='panel'><div class='k'>SOURCE MATTER</div><p>{source}</p></div>
 <div class='panel'><span class='badge'>DIFFICULTY: {html.escape(item.difficulty_mode.upper())}</span><span class='badge'>BACKGROUND: {html.escape(item.background_mode.upper())}</span><p class='muted'><strong>Creative Direction:</strong> {direction}</p></div>
 {_memory_panel(item)}
+{_self_healing_panel(item)}
 <div class='grid'>{cards}</div>
 <form method='post' action='/studio/ideas/{html.escape(item.batch_id)}/archive'><button class='secondary' type='submit'>ARCHIVE THIS BATCH</button></form>
 <p><a href='/studio/{html.escape(item.session_id)}/concepts'>OPEN CURRENT PROJECT</a> · <a href='/studio/ideas'>BACK TO IDEA ROOM</a></p>
