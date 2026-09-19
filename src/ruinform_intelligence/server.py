@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from .api import app
+from .build_evidence import build_evidence_panel, count_candidate_evidence_rounds, state_for_build_candidate
 from .evidence_api import router as evidence_loop_router
 from .evidence_media import router as evidence_media_router
 from .future_api import router as future_forms_router
@@ -16,6 +17,7 @@ from .review_schema import prepare_review_store_schema
 from .review_store import capture_session_render
 from .self_healing_preview import generate_concept_preview as generate_self_healing_preview
 from . import studio as studio_module
+from .studio_build_evidence import router as studio_build_evidence_router
 from .studio_controls import router as studio_controls_router
 from .studio_evals import router as studio_evals_router
 from .studio_ideas import router as studio_ideas_router
@@ -39,6 +41,60 @@ def _ensure_review_schema() -> None:
 # callable for a bounded one-pass self-healing wrapper. PASS ideas remain locked;
 # REVISE/REJECT slots may be repaired/replaced once before the user sees them.
 studio_module.generate_concept_preview = generate_self_healing_preview
+
+
+# RFM-INT-0024 keeps build evidence scoped to the approved candidate. Evidence from an
+# earlier candidate may remain in the project audit trail, but it must never influence a
+# different future merely because the user rendered another idea in the same session.
+_original_reviewed_build_package = studio_module.generate_reviewed_build_package
+
+
+async def _candidate_scoped_reviewed_build_package(**kwargs):
+    future = kwargs["future"]
+    kwargs["state"] = state_for_build_candidate(
+        kwargs["state"],
+        future.candidate.candidate_id,
+    )
+    return await _original_reviewed_build_package(**kwargs)
+
+
+studio_module.generate_reviewed_build_package = _candidate_scoped_reviewed_build_package
+
+
+# Add the evidence-resume mission to non-PASS MAKE IT REAL pages without duplicating the
+# stable Build Master renderer. The core page still owns the engineering details; this
+# wrapper inserts only the next-action panel.
+_original_build_page = studio_module._build_page
+
+
+def _build_page_with_evidence_request(session) -> str:
+    body = _original_build_page(session)
+    if (
+        session.build_plan is None
+        or session.build_review is None
+        or session.build_review.status == "pass"
+        or not session.selected_candidate_id
+    ):
+        return body
+    panel = build_evidence_panel(
+        session_id=session.session_id,
+        plan=session.build_plan,
+        review=session.build_review,
+        candidate_id=session.selected_candidate_id,
+        evidence_round_count=count_candidate_evidence_rounds(
+            session.project_state,
+            session.selected_candidate_id,
+        ),
+    )
+    if not panel:
+        return body
+    anchor = "<div class='grid'><div class='panel'><div class='k'>WHAT WE KNOW</div>"
+    if anchor in body:
+        return body.replace(anchor, panel + anchor, 1)
+    return panel + body
+
+
+studio_module._build_page = _build_page_with_evidence_request
 
 
 # Keep the most-used Studio destinations visible on every Studio page.
@@ -124,6 +180,9 @@ app.include_router(studio_controls_router)
 app.include_router(studio_evals_router)
 app.include_router(studio_ideas_router)
 app.include_router(studio_reviews_router)
+# Evidence resume is a deeper Studio route. Register it before the main Studio router so
+# it remains explicit and inspectable rather than becoming part of the legacy route surface.
+app.include_router(studio_build_evidence_router)
 app.include_router(studio_router)
 # Register post-production before the legacy lab router so the enhanced
 # render endpoint owns POST /lab/{session_id}/render/{candidate_id}.

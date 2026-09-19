@@ -8,6 +8,7 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
+from .build_evidence import build_evidence_image_urls
 from .build_models import BuildCriticReview, BuildPlan, BuildRevisionTrace
 from .engineering_critic import EngineeringCriticError, review_build_plan
 from .future_models import ReviewedFuture
@@ -153,12 +154,15 @@ def _build_request_text(
     draft: BuildPlan | None = None,
     review: BuildCriticReview | None = None,
 ) -> str:
+    build_photo_count = len(build_evidence_image_urls(state, future.candidate.candidate_id))
     base = (
         "Create a practical post-production build plan for this approved RUINFORM future.\n\n"
-        "IMPORTANT: the image attached to this message is the exact render the user approved. "
+        "IMPORTANT: the first image attached to this message is the exact render the user approved. "
         "Treat its visible form, arrangement, proportions, surface treatment and assembly intent as the visual target. "
         "Do not silently redesign it. If the image conflicts with verified physical facts, keep the facts and state the mismatch as a gate.\n\n"
         "Never invent a numeric physical dimension or rating. Unknown geometry belongs in measurements_required and measure-to-fit language.\n\n"
+        f"ADDITIONAL WORKSHOP EVIDENCE PHOTOS: {build_photo_count}. If present, they follow the approved render image. "
+        "Treat them as evidence only for what is actually visible; do not infer hidden wall structure, material grade, load rating, or dimensions from a photo.\n\n"
         f"PLAN MODE: {plan_mode}\n\n"
         f"Project state: {compact_state_json(state)}\n\n"
         f"Approved future: {future.candidate.model_dump_json()}\n\n"
@@ -186,28 +190,27 @@ async def _request_plan(
     draft: BuildPlan | None = None,
     review: BuildCriticReview | None = None,
 ) -> BuildPlan:
+    evidence_images = build_evidence_image_urls(state, future.candidate.candidate_id)
+    content: list[dict[str, str]] = [
+        {
+            "type": "input_text",
+            "text": _build_request_text(
+                state=state,
+                future=future,
+                plan_mode=plan_mode,
+                draft=draft,
+                review=review,
+            ),
+        },
+        {"type": "input_image", "image_url": accepted_image_url},
+    ]
+    content.extend({"type": "input_image", "image_url": image_url} for image_url in evidence_images)
+
     response = await client.responses.create(
         model=model,
         reasoning={"effort": "medium"},
         instructions=load_build_master_prompt(),
-        input=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": _build_request_text(
-                            state=state,
-                            future=future,
-                            plan_mode=plan_mode,
-                            draft=draft,
-                            review=review,
-                        ),
-                    },
-                    {"type": "input_image", "image_url": accepted_image_url},
-                ],
-            }
-        ],
+        input=[{"role": "user", "content": content}],
         text={
             "format": {
                 "type": "json_schema",
