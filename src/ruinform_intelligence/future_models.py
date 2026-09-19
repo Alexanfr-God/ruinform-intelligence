@@ -75,7 +75,7 @@ class ReviewBatch(StrictModel):
 
 class RevisionRecord(BaseModel):
     round_index: int = Field(ge=1, le=5)
-    critique_status: Literal["revise"]
+    critique_status: Literal["revise", "reject"]
     requested_changes: list[str]
     candidate_before: CandidateForm
     candidate_after: CandidateForm

@@ -14,6 +14,7 @@ from .mvp_entry import router as mvp_entry_router
 from .render_api import router as render_router
 from .review_schema import prepare_review_store_schema
 from .review_store import capture_session_render
+from .self_healing_preview import generate_concept_preview as generate_self_healing_preview
 from . import studio as studio_module
 from .studio_controls import router as studio_controls_router
 from .studio_evals import router as studio_evals_router
@@ -32,6 +33,12 @@ def _ensure_review_schema() -> None:
         return
     prepare_review_store_schema()
     _review_schema_prepared = True
+
+
+# RFM-INT-0021 keeps the stable Studio route surface but swaps the concept-stage
+# callable for a bounded one-pass self-healing wrapper. PASS ideas remain locked;
+# REVISE/REJECT slots may be repaired/replaced once before the user sees them.
+studio_module.generate_concept_preview = generate_self_healing_preview
 
 
 # Keep the most-used Studio destinations visible on every Studio page.
