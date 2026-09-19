@@ -73,7 +73,7 @@ def test_preview_prompt_defers_engineering_until_after_selection() -> None:
     assert "SOURCE ECONOMY" in prompt
     assert "DIVERSITY CONTRACT" in prompt
     assert "at least three genuinely different transformation families" in prompt
-    assert "same obvious source" in prompt
+    assert "same source" in prompt
 
 
 def test_preview_schema_locks_material_ids_to_project_state() -> None:
