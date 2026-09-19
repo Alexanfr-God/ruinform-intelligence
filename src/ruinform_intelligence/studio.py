@@ -157,7 +157,7 @@ def _page(body: str, *, title: str = "RUINFORM STUDIO") -> str:
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>{html.escape(title)}</title>
 <style>
-:root{{color-scheme:dark}}*{{box-sizing:border-box}}body{{margin:0;background:#080807;color:#eee8dd;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}}main{{max-width:1180px;margin:0 auto;padding:46px 22px 100px}}h1{{font-size:clamp(42px,8vw,104px);line-height:.88;letter-spacing:-.065em;margin:0 0 24px}}h2{{font-size:24px}}p{{line-height:1.55}}a{{color:#eee8dd}}.k{{font-size:12px;letter-spacing:.2em;color:#8f887b;margin-bottom:15px}}.muted{{color:#8f887b}}.rule{{border-top:1px solid #302d28;margin:32px 0}}.panel{{border:1px solid #343029;background:#0f0f0d;padding:20px;margin:18px 0}}.grid{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}}.card{{border:1px solid #3b3730;background:#11110f;padding:18px}}.badge{{display:inline-block;border:1px solid #6f5940;padding:5px 8px;margin:0 8px 8px 0;font-size:11px;letter-spacing:.08em}}.scores{{font-size:12px;color:#aaa296;line-height:1.7}}label{{display:block;margin:16px 0 8px;color:#b9b1a4}}input,textarea,select,button{{width:100%;background:#12110f;color:#eee8dd;border:1px solid #3d3932;padding:13px;font:inherit}}button{{cursor:pointer;background:#e8e0d1;color:#111;border:0;font-weight:700;margin-top:15px}}button.secondary{{background:#171613;color:#eee8dd;border:1px solid #4a443c}}img.hero{{width:100%;display:block;border:1px solid #3d3932;margin:20px 0}}.warning{{color:#d5ad74}}.step{{border-left:2px solid #675540;padding-left:16px;margin:20px 0}}#busy{{display:none;position:fixed;inset:0;background:rgba(5,5,4,.92);z-index:20;align-items:center;justify-content:center;text-align:center;padding:20px}}#busy.on{{display:flex}}#busy h2{{font-size:clamp(28px,5vw,64px);margin:8px 0}}@media(max-width:760px){{.grid{{grid-template-columns:1fr}}}}
+:root{{color-scheme:dark}}*{{box-sizing:border-box}}body{{margin:0;background:#080807;color:#eee8dd;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}}main{{max-width:1180px;margin:0 auto;padding:46px 22px 100px}}h1{{font-size:clamp(42px,8vw,104px);line-height:.88;letter-spacing:-.065em;margin:0 0 24px}}h2{{font-size:24px}}p{{line-height:1.55}}a{{color:#eee8dd}}.k{{font-size:12px;letter-spacing:.2em;color:#8f887b;margin-bottom:15px}}.muted{{color:#8f887b}}.rule{{border-top:1px solid #302d28;margin:32px 0}}.panel{{border:1px solid #343029;background:#0f0f0d;padding:20px;margin:18px 0}}.grid{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}}.card{{border:1px solid #3b3730;background:#11110f;padding:18px}}.badge{{display:inline-block;border:1px solid #6f5940;padding:5px 8px;margin:0 8px 8px 0;font-size:11px;letter-spacing:.08em}}.scores{{font-size:12px;color:#aaa296;line-height:1.7}}label{{display:block;margin:16px 0 8px;color:#b9b1a4}}input,textarea,select,button{{width:100%;background:#12110f;color:#eee8dd;border:1px solid #3d3932;padding:13px;font:inherit}}input[type=checkbox]{{width:auto;margin-right:8px}}button{{cursor:pointer;background:#e8e0d1;color:#111;border:0;font-weight:700;margin-top:15px}}button.secondary{{background:#171613;color:#eee8dd;border:1px solid #4a443c}}button:disabled{{opacity:.45;cursor:not-allowed}}img.hero{{width:100%;display:block;border:1px solid #3d3932;margin:20px 0}}.warning{{color:#d5ad74}}.step{{border-left:2px solid #675540;padding-left:16px;margin:20px 0}}.critic-pass{{border-color:#485d48}}.critic-revise{{border-color:#8a6b3e}}.critic-reject{{border-color:#7b4141}}#busy{{display:none;position:fixed;inset:0;background:rgba(5,5,4,.92);z-index:20;align-items:center;justify-content:center;text-align:center;padding:20px}}#busy.on{{display:flex}}#busy h2{{font-size:clamp(28px,5vw,64px);margin:8px 0}}@media(max-width:760px){{.grid{{grid-template-columns:1fr}}}}
 </style></head><body><div id="busy"><div><div class="k">RUINFORM / WORKING</div><h2 id="busy-title">FINDING POSSIBLE FUTURES.</h2><p class="muted">This stage is intentionally lightweight. Detailed engineering waits until you approve a visual.</p></div></div><main>{body}</main>
 <script>
 document.querySelectorAll('form[data-busy]').forEach(function(form){{form.addEventListener('submit',function(){{var b=document.getElementById('busy');var t=document.getElementById('busy-title');if(form.dataset.busyTitle)t.textContent=form.dataset.busyTitle;b.classList.add('on');Array.from(form.querySelectorAll('button')).forEach(function(x){{x.disabled=true}});}});}});
@@ -219,6 +219,63 @@ def _background_select(current: str) -> str:
     )
 
 
+def _critic_tags(required_changes: list[str]) -> list[str]:
+    tags: list[str] = []
+    for change in required_changes:
+        if not change.startswith("[") or "]" not in change:
+            continue
+        tag = change[1 : change.index("]")].strip()
+        if tag and tag not in tags:
+            tags.append(tag)
+    return tags
+
+
+def _critic_panel(review) -> str:
+    status_label = review.status.upper()
+    tags = _critic_tags(list(review.required_changes))
+    tag_html = "".join(f"<span class='badge'>{html.escape(tag)}</span>" for tag in tags)
+    reason = review.reasons[0] if review.reasons else "No critic summary supplied."
+    changes = "".join(f"<li>{html.escape(change)}</li>" for change in review.required_changes)
+    changes_html = f"<ul>{changes}</ul>" if changes else "<p class='muted'>No required changes.</p>"
+    return (
+        f"<div class='panel critic-{html.escape(review.status)}'>"
+        f"<div class='k'>PRE-RENDER CRITIC / {html.escape(status_label)}</div>"
+        f"{tag_html}"
+        f"<p>{html.escape(reason)}</p>"
+        f"{changes_html}"
+        "</div>"
+    )
+
+
+def _render_form(session: TransformationSession, future, current_background: str) -> str:
+    review = future.review
+    candidate_id = html.escape(future.candidate.candidate_id)
+    session_id = html.escape(session.session_id)
+    if review.status == "reject":
+        return (
+            "<p class='warning'><strong>RENDER BLOCKED.</strong> The pre-render critic rejected this direction. "
+            "Change the Creative Direction or generate a different set before spending image tokens.</p>"
+        )
+
+    override = ""
+    label = "RENDER THIS CONCEPT"
+    button_class = ""
+    if review.status == "revise":
+        label = "RENDER ANYWAY — REVISE FLAGGED"
+        button_class = " class='secondary'"
+        override = (
+            "<label><input type='checkbox' name='critic_override' value='yes' required/>"
+            "I understand the critic recommends revision and still want to spend a render on this experiment.</label>"
+        )
+
+    return f"""
+<form method='post' action='/studio/{session_id}/render/{candidate_id}' data-busy data-busy-title='RENDERING THE SELECTED FUTURE.'>
+{_background_select(current_background)}
+{override}
+<button{button_class} type='submit'>{label}</button>
+</form>"""
+
+
 def _concepts_page(session: TransformationSession) -> str:
     if session.futures is None or not session.futures.selected_futures:
         return _concept_form(session)
@@ -236,14 +293,12 @@ def _concepts_page(session: TransformationSession) -> str:
 <h2>{html.escape(c.name)}</h2>
 <p>{html.escape(c.one_line)}</p>
 <p><strong>Transformation:</strong> {html.escape(c.transformation_logic)}</p>
-<div class='scores'>BUILDABILITY {r.buildability_score} / ORIGINALITY {r.originality_score} / ART {r.artistic_impact_score} / USEFULNESS {r.usefulness_score} / VALUE {r.value_potential_score}</div>
+<div class='scores'>FEASIBILITY {r.feasibility_score} / MATERIAL FIT {r.material_fit_score} / BUILDABILITY {r.buildability_score} / ORIGINALITY {r.originality_score} / ART {r.artistic_impact_score} / USEFULNESS {r.usefulness_score} / VALUE {r.value_potential_score}</div>
+{_critic_panel(r)}
 <p><strong>Operations:</strong> {html.escape(ops)}</p>
 <p><strong>Possible additions:</strong> {html.escape(added)}</p>
 <p class='muted'><strong>Still unverified:</strong> {html.escape(unresolved)}</p>
-<form method='post' action='/studio/{html.escape(session.session_id)}/render/{html.escape(c.candidate_id)}' data-busy data-busy-title='RENDERING THE SELECTED FUTURE.'>
-{_background_select(current_background)}
-<button type='submit'>RENDER THIS CONCEPT</button>
-</form>
+{_render_form(session, future, current_background)}
 </div>""")
     return f"""
 <div class='k'>CONCEPT ARCHITECT / FAST PREVIEW</div><h1>I SEE 4<br>FUTURES.</h1>
@@ -361,8 +416,24 @@ async def studio_render(
     session_id: str,
     candidate_id: str,
     background_mode: str = Form(''),
+    critic_override: str = Form(''),
 ) -> str:
     session = _session(session_id)
+    future = None
+    if session.futures:
+        future = next((x for x in session.futures.selected_futures if x.candidate.candidate_id == candidate_id), None)
+    if future is None:
+        raise HTTPException(status_code=404, detail='Concept is unavailable')
+    if future.review.status == 'reject':
+        return _page(
+            f"<div class='k'>PRE-RENDER CRITIC / REJECT</div><h1>RENDER BLOCKED.</h1>"
+            f"<p>This direction failed the pre-render gate, so RUINFORM did not spend image tokens.</p>"
+            f"<p><a href='/studio/{html.escape(session_id)}/concepts'>BACK TO CONCEPTS</a></p>",
+            title='RUINFORM / RENDER BLOCKED',
+        )
+    if future.review.status == 'revise' and critic_override != 'yes':
+        raise HTTPException(status_code=409, detail='Critic revision acknowledgement required before render')
+
     if background_mode in _BACKGROUND_MODES and background_mode != session.project_state.creative_intent.background_mode:
         creative_intent = session.project_state.creative_intent.model_copy(
             update={'background_mode': background_mode}
