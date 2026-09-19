@@ -162,6 +162,9 @@ Studio appends a low-friction `TEACH RUINFORM` panel to approved renders and exp
 Detailed contract:
 `docs/EVAL_LIBRARY.md`
 
+Distilled conditional lessons for future retrieval:
+`docs/WAVE3_RETRIEVAL_LESSONS.md`
+
 Taste Library teaches **what good design is**. Eval Library teaches **what happened when RUINFORM actually tried**.
 
 ### Build Brain — later
@@ -235,7 +238,8 @@ Learning: concept quality improved meaningfully; Visual Director / authorship is
 - [x] reusable failure tags
 - [x] Studio `TEACH RUINFORM` feedback form
 - [x] `/studio/evals` ALL / SUCCESS / MIXED / FAIL views
-- [ ] first production evaluation saved through UI
+- [x] first production evaluation saved through UI
+- [x] first distilled Wave 3 retrieval lesson recorded from a SUCCESS case
 - [ ] accumulate 10 controlled real evaluation cases
 
 #### Wave 3 — Smart retrieval
@@ -246,6 +250,7 @@ Learning: concept quality improved meaningfully; Visual Director / authorship is
 - [ ] retrieve 2–4 Taste Cards only
 - [ ] retrieve 1–2 relevant past successes
 - [ ] retrieve 1–2 relevant past failure patterns
+- [ ] retrieve only relevant distilled lessons, never the whole lesson registry
 - [ ] feed visual references when asset bucket is ready
 
 ### RFM-INT-0014 — 10 controlled real evaluation cases
@@ -309,6 +314,7 @@ We use ready-made infrastructure wherever possible and write custom code only ar
 - Eval Library is durable structured memory, not a markdown graveyard.
 - Success, mixed and failure cases stay in one dataset with filterable views.
 - Wave 3 retrieves only a small relevant memory pack, never the entire history.
+- Distilled lessons are conditional retrieval memory, not permanent prompt bloat.
 - Post-consumer / post-apocalyptic salvage economy is core product identity.
 - Hackathon uses closed/quota-controlled testing if necessary to protect API spend.
 - Waiting mini-game is recorded but postponed.
