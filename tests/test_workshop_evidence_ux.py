@@ -60,7 +60,17 @@ def _plan() -> BuildPlan:
                 tools=[],
                 verify="Silhouette is visible.",
                 stop_if=[],
-            )
+            ),
+            BuildStep(
+                step_number=2,
+                title="Prepare mounting",
+                action="Proceed only after the evidence gates are satisfied.",
+                source_material_ids=[],
+                added_materials=[],
+                tools=[],
+                verify="Mounting evidence is complete.",
+                stop_if=[],
+            ),
         ],
         unresolved_before_use=[],
         safety_gates=[],
