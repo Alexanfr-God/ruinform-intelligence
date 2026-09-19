@@ -6,13 +6,22 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
-from .future_models import CandidatePool, ReviewBatch
+from .future_models import CandidatePool, FeasibilityReview, ReviewBatch
 from .models import ProjectState
 from .prompt_loader import load_prompt_file
 from .reasoning_state import compact_state_json
 
 
 DEFAULT_MODEL = "gpt-5.6"
+_SCORE_FIELDS = (
+    "feasibility_score",
+    "material_fit_score",
+    "buildability_score",
+    "originality_score",
+    "artistic_impact_score",
+    "usefulness_score",
+    "value_potential_score",
+)
 
 
 class FeasibilityError(RuntimeError):
@@ -37,6 +46,37 @@ def _validate_review_batch(*, pool: CandidatePool, batch: ReviewBatch) -> None:
         if extra:
             details.append("extra=" + ",".join(sorted(extra)))
         raise FeasibilityError("Review batch does not match candidate pool: " + " ".join(details))
+
+
+def _normalize_review_score_scale(review: FeasibilityReview) -> FeasibilityReview:
+    """Repair obvious model drift to a 1–5 or 1–10 scale.
+
+    The public contract is always 0–100. A whole review whose seven scores all sit
+    at <=10 is almost certainly scale drift, not an intentional 3/100 across every
+    dimension. Keep zero as zero and record the repair for auditability.
+    """
+    values = [int(getattr(review, field)) for field in _SCORE_FIELDS]
+    maximum = max(values, default=0)
+    if maximum <= 0 or maximum > 10:
+        return review
+
+    factor = 20 if maximum <= 5 else 10
+    updates = {
+        field: min(100, int(getattr(review, field)) * factor)
+        for field in _SCORE_FIELDS
+    }
+    reasons = list(review.reasons)
+    reasons.append(
+        f"SYSTEM: normalized critic score drift from an apparent 0–{5 if factor == 20 else 10} scale to 0–100."
+    )
+    updates["reasons"] = reasons
+    return review.model_copy(update=updates)
+
+
+def _normalize_review_batch(batch: ReviewBatch) -> ReviewBatch:
+    return batch.model_copy(
+        update={"reviews": [_normalize_review_score_scale(review) for review in batch.reviews]}
+    )
 
 
 def _mode_policy(concept_mode: bool) -> str:
@@ -64,8 +104,9 @@ def _compact_retrieval_trace(trace: dict[str, Any] | None) -> str:
         "evals": trace.get("evals", []),
         "lessons": trace.get("lessons", []),
         "shortlisted_ideas": trace.get("shortlisted_ideas", []),
+        "preview_metadata": trace.get("preview_metadata", []),
     }
-    return json.dumps(compact, ensure_ascii=False)[:8000]
+    return json.dumps(compact, ensure_ascii=False)[:10000]
 
 
 async def review_candidate_pool(
@@ -98,8 +139,10 @@ async def review_candidate_pool(
                             "text": (
                                 "Review every future form against the physical project state.\n\n"
                                 f"MODE POLICY: {_mode_policy(concept_mode)}\n\n"
+                                "SCORE CONTRACT: all seven numeric score fields are integers on a 0–100 scale. "
+                                "Never answer on a 1–5 or 1–10 scale.\n\n"
                                 f"Project state: {compact_state_json(state)}\n\n"
-                                f"WAVE 3 RETRIEVAL TRACE: {_compact_retrieval_trace(retrieval_trace)}\n\n"
+                                f"WAVE 3 RETRIEVAL + PREVIEW TRACE: {_compact_retrieval_trace(retrieval_trace)}\n\n"
                                 f"Candidate pool: {pool.model_dump_json()}"
                             ),
                         }
@@ -125,5 +168,6 @@ async def review_candidate_pool(
     except (json.JSONDecodeError, ValueError) as exc:
         raise FeasibilityError("Feasibility Critic returned invalid structured output") from exc
 
+    batch = _normalize_review_batch(batch)
     _validate_review_batch(pool=pool, batch=batch)
     return batch

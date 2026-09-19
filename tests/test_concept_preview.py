@@ -71,7 +71,8 @@ def test_preview_prompt_defers_engineering_until_after_selection() -> None:
     assert "exactly four" in prompt
     assert "MEMORY INFLUENCE CAP" in prompt
     assert "SOURCE ECONOMY" in prompt
-    assert "DIVERSITY GATE" in prompt
+    assert "DIVERSITY CONTRACT" in prompt
+    assert "at least three genuinely different transformation families" in prompt
 
 
 def test_preview_schema_locks_material_ids_to_project_state() -> None:
@@ -96,6 +97,7 @@ def test_source_participation_contract_prefers_smallest_coherent_subset() -> Non
     assert "SMALLEST coherent subset" in contract
     assert "No concept is required to use all source items" in contract
     assert "intentional omission is valid" in contract
+    assert "do not make the same obvious source the hero in all four futures" in contract
 
 
 def test_pre_render_gate_penalizes_revise_and_reject() -> None:
