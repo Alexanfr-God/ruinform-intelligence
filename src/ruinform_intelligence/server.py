@@ -6,20 +6,33 @@ from .api import app
 from .evidence_api import router as evidence_loop_router
 from .evidence_media import router as evidence_media_router
 from .future_api import router as future_forms_router
+from .idea_store import capture_session_ideas, mark_session_candidate_rendered
 from .lab import router as lab_router
 from .lab_postproduction import router as lab_postproduction_router
 from .live_api import router as live_transformations_router
 from .mvp_entry import router as mvp_entry_router
 from .render_api import router as render_router
+from .review_schema import prepare_review_store_schema
 from .review_store import capture_session_render
 from . import studio as studio_module
 from .studio_controls import router as studio_controls_router
 from .studio_evals import router as studio_evals_router
+from .studio_ideas import router as studio_ideas_router
 from .studio_reviews import router as studio_reviews_router
 
 
 logger = logging.getLogger(__name__)
 studio_router = studio_module.router
+_review_schema_prepared = False
+
+
+def _ensure_review_schema() -> None:
+    global _review_schema_prepared
+    if _review_schema_prepared:
+        return
+    prepare_review_store_schema()
+    _review_schema_prepared = True
+
 
 # Keep the most-used Studio destinations visible on every Studio page.
 # This wrapper is intentionally UI-only: it does not touch session state or the
@@ -37,6 +50,7 @@ def _studio_page_with_global_nav(body: str, *, title: str = "RUINFORM STUDIO") -
 @media(max-width:760px){.ruinform-global-nav{justify-content:stretch;flex-wrap:wrap}.ruinform-global-nav a{flex:1;text-align:center}}
 </style>
 <nav class='ruinform-global-nav' aria-label='Studio navigation'>
+<a href='/studio/ideas'>IDEA ROOM</a>
 <a href='/studio/reviews'>REVIEW INBOX</a>
 <a href='/studio/evals'>EVAL LIBRARY</a>
 <a class='primary' href='/studio/new'>+ NEW PROJECT</a>
@@ -50,22 +64,44 @@ studio_module._page = _studio_page_with_global_nav
 
 
 @app.middleware("http")
-async def _capture_approved_renders_for_review(request, call_next):
-    """Archive every approved Studio render without putting the queue on the hot path.
+async def _capture_wave3_memory(request, call_next):
+    """Freeze generated thinking and approved visuals without slowing the hot path.
 
-    Capture happens after the render response is built. A queue/database problem must
-    never turn a successful user generation into a failed request, so capture errors
-    are logged and isolated from the render pipeline.
+    Concept batches are captured after concept generation. Approved renders are
+    captured after render generation. GET variants also backfill the current Studio
+    state, which lets an already-generated project recover into the new rooms after
+    deployment. Queue failures are isolated from the user's successful request.
     """
 
     response = await call_next(request)
-    if request.method == "POST":
-        parts = request.url.path.strip("/").split("/")
-        if len(parts) == 4 and parts[0] == "studio" and parts[2] == "render":
-            try:
-                capture_session_render(studio_module._session(parts[1]))
-            except Exception:  # pragma: no cover - queue capture must never break rendering
-                logger.exception("Could not capture approved render for review inbox")
+    parts = request.url.path.strip("/").split("/")
+    if not parts or parts[0] != "studio":
+        return response
+
+    try:
+        # POST /studio/{session}/concepts and GET /studio/{session}/concepts
+        if len(parts) == 3 and parts[2] == "concepts" and request.method in {"POST", "GET"}:
+            session = studio_module._session(parts[1])
+            capture_session_ideas(session)
+
+        # POST /studio/{session}/render/{candidate}
+        if len(parts) == 4 and parts[2] == "render" and request.method == "POST":
+            _ensure_review_schema()
+            session = studio_module._session(parts[1])
+            capture_session_ideas(session)
+            mark_session_candidate_rendered(session)
+            capture_session_render(session)
+
+        # GET /studio/{session}/render acts as a backfill path for existing approved renders.
+        if len(parts) == 3 and parts[2] == "render" and request.method == "GET":
+            _ensure_review_schema()
+            session = studio_module._session(parts[1])
+            capture_session_ideas(session)
+            mark_session_candidate_rendered(session)
+            capture_session_render(session)
+    except Exception:  # pragma: no cover - memory capture must never break Studio
+        logger.exception("Could not capture Wave 3 Studio memory")
+
     return response
 
 
@@ -75,17 +111,11 @@ app.include_router(future_forms_router)
 app.include_router(render_router)
 app.include_router(live_transformations_router)
 # Static Studio entry routes must be registered before the dynamic
-# /studio/{session_id} routes, otherwise FastAPI treats "new" as a session ID.
+# /studio/{session_id} routes, otherwise FastAPI treats names as session IDs.
 app.include_router(mvp_entry_router)
-# In-session controls are registered before the main Studio router so control
-# edits remain first-class Studio navigation and never fall through to legacy Lab.
 app.include_router(studio_controls_router)
-# Wave 2 Eval Library includes a static /studio/evals route and patches the
-# approved render page with a small human-rating form. Register it before the
-# dynamic Studio session router.
 app.include_router(studio_evals_router)
-# Wave 3 Review Inbox freezes every approved generation until a human rates it.
-# Keep its static routes ahead of /studio/{session_id} as well.
+app.include_router(studio_ideas_router)
 app.include_router(studio_reviews_router)
 app.include_router(studio_router)
 # Register post-production before the legacy lab router so the enhanced
