@@ -7,11 +7,13 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .eval_models import EvalOutcome, EvalRecord
 from .eval_store import create_eval_store
+from .review_store import create_review_store
 from . import studio as studio_module
 
 
 router = APIRouter(tags=["studio-evals"])
 _eval_store = None
+_review_store = None
 
 _FAILURE_TAGS = [
     ("too_diy", "TOO DIY"),
@@ -23,6 +25,7 @@ _FAILURE_TAGS = [
     ("bad_render", "BAD RENDER"),
     ("lost_source", "LOST SOURCE OBJECT"),
     ("weak_signature_gesture", "WEAK SIGNATURE GESTURE"),
+    ("mechanism_not_visually_readable", "MECHANISM NOT VISUALLY READABLE"),
     ("low_physical_credibility", "LOW PHYSICAL CREDIBILITY"),
     ("world_rescues_object", "BACKGROUND RESCUES WEAK OBJECT"),
     ("other", "OTHER"),
@@ -34,6 +37,13 @@ def _store():
     if _eval_store is None:
         _eval_store = create_eval_store()
     return _eval_store
+
+
+def _reviews():
+    global _review_store
+    if _review_store is None:
+        _review_store = create_review_store()
+    return _review_store
 
 
 def _selected_future(session):
@@ -237,6 +247,16 @@ async def studio_evaluate(
         bad_notes=bad_notes,
     )
     _store().save(record)
+    try:
+        _reviews().mark_matching_evaluated(
+            session_id=record.session_id,
+            candidate_id=record.candidate_id,
+            render_url=record.render_url,
+            eval_id=record.eval_id,
+        )
+    except Exception:
+        # Evaluation is the source of truth. Queue cleanup must not block learning.
+        pass
     return RedirectResponse(url=f"/studio/evals?outcome={record.outcome}", status_code=303)
 
 

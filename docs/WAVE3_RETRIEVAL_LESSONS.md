@@ -58,3 +58,55 @@ When relevant, it should bias Design Brain toward concepts with:
 3. low added-part count;
 4. achievable fabrication;
 5. clear collectible authorship.
+
+## Lesson 002 — Interaction must read in the image
+
+**Origin:** evaluated Shadow Shear render (MIXED).
+
+### Core rule
+
+If a concept depends on interaction, the visual must make the causal chain legible:
+
+`INPUT → MECHANISM → VISIBLE EFFECT`
+
+A beautiful object is not enough when the concept's value comes from what the user does to it. The viewer should be able to infer what moves, why it moves, and what changes.
+
+### Positive pattern
+
+- one obvious control or input;
+- one understandable transfer of motion;
+- one large visible consequence;
+- no decorative hardware competing with the causal chain.
+
+### Failure pattern
+
+`interesting mechanism in text → decorative-looking control in render → effect cannot be inferred`
+
+This should map to the eval tag `mechanism_not_visually_readable`.
+
+### Retrieval cues
+
+Retrieve this lesson when a proposed concept uses:
+- scissors, handles, pull cords, levers, cranks, hinges or sliders as controls;
+- shadow-changing, opening, rotating, balancing or moving states;
+- any concept whose wow depends on touching the object.
+
+### Critic question
+
+Before spending image-generation tokens, ask:
+
+> If the concept description were hidden, would the final render still suggest INPUT → MECHANISM → EFFECT?
+
+If not, simplify or re-stage the concept before rendering.
+
+## Review Inbox — data collection rule
+
+Approved generations must not disappear just because nobody rated them immediately.
+
+Every approved render should be frozen into a `PENDING` review inbox. Human evaluation may happen later, producing SUCCESS, MIXED or FAIL and moving the item into Eval Library memory.
+
+This creates the learning loop:
+
+`GENERATE → PENDING REVIEW → HUMAN JUDGMENT → EVAL MEMORY → WAVE 3 RETRIEVAL`
+
+The review queue is operational memory; the Eval Library is learned memory.
