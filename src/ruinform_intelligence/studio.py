@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
-from .build_master import BuildMasterError, generate_build_plan
+from .build_master import BuildMasterError, generate_reviewed_build_package
 from .concept_preview import ConceptPreviewError, generate_concept_preview
 from .provider_factory import create_higgsfield_provider
 from .render_gateway import RenderGatewayError
@@ -325,9 +325,85 @@ def _render_page(session: TransformationSession) -> str:
 <div class='k'>VISUAL DIRECTOR / APPROVED IMAGE / {html.escape(background_label)}</div><h1>THIS IS WHAT<br>IT COULD BECOME.</h1>
 <h2>{html.escape(title)}</h2><img class='hero' src='{html.escape(image, quote=True)}' alt='RUINFORM generated future'/>
 <p class='warning'>This is still a concept visualization. Physical feasibility has not yet been deeply verified.</p>
-<form method='post' action='/studio/{html.escape(session.session_id)}/build' data-busy data-busy-title='TURNING THE VISUAL INTO A BUILD PLAN.'><button type='submit'>MAKE IT REAL</button></form>
+<form method='post' action='/studio/{html.escape(session.session_id)}/build' data-busy data-busy-title='BUILD MASTER + ENGINEERING CRITIC.'><button type='submit'>MAKE IT REAL</button></form>
 <form method='get' action='/studio/{html.escape(session.session_id)}/concepts'><button class='secondary' type='submit'>BACK TO CONCEPTS / TRY OTHER BACKGROUND</button></form>
 """
+
+
+def _list_items(values: list[str], *, empty: str = "none declared") -> str:
+    return "".join(f"<li>{html.escape(value)}</li>" for value in values) or f"<li>{html.escape(empty)}</li>"
+
+
+def _build_critic_panel(review) -> str:
+    if review is None:
+        return (
+            "<div class='panel'><div class='k'>ENGINEERING CRITIC / LEGACY PLAN</div>"
+            "<p class='muted'>This stored build plan predates RFM-INT-0023 and has no post-plan engineering audit.</p></div>"
+        )
+    css_status = "reject" if review.status == "block" else review.status
+    tags = _critic_tags(list(review.required_changes))
+    tag_html = "".join(f"<span class='badge'>{html.escape(tag)}</span>" for tag in tags)
+    changes_html = _list_items(list(review.required_changes), empty="no required changes")
+    blockers_html = _list_items(list(review.blocking_unknowns), empty="no blocking unknowns")
+    scores = (
+        f"EVIDENCE {review.evidence_grounding_score} / PHYSICAL {review.physical_credibility_score} / "
+        f"SEQUENCE {review.sequence_quality_score} / VISUAL {review.visual_fidelity_score} / "
+        f"COMPLETE {review.completeness_score} / SAFETY {review.safety_completeness_score}"
+    )
+    reason = review.reasons[0] if review.reasons else "No critic summary supplied."
+    return f"""
+<div class='panel critic-{html.escape(css_status)}'>
+<div class='k'>ENGINEERING CRITIC / {html.escape(review.status.upper())}</div>
+{tag_html}
+<div class='scores'>{html.escape(scores)}</div>
+<p>{html.escape(reason)}</p>
+<div class='grid'><div><strong>REQUIRED CHANGES</strong><ul>{changes_html}</ul></div><div><strong>BLOCKING UNKNOWNS</strong><ul>{blockers_html}</ul></div></div>
+</div>"""
+
+
+def _build_revision_panel(trace) -> str:
+    if trace is None:
+        return ""
+    after = trace.after_status.upper() if trace.after_status else "—"
+    state = f"{trace.before_status.upper()} → {after}" if trace.attempted else f"NO REPAIR / {trace.before_status.upper()}"
+    requested = _list_items(list(trace.changes_requested), empty="no repair requested")
+    return f"""
+<div class='panel'>
+<div class='k'>BUILD MASTER / BOUNDED REVISION AUDIT</div>
+<span class='badge'>{html.escape(trace.version)}</span><span class='badge'>{html.escape(state)}</span>
+<p class='muted'>{html.escape(trace.policy)}</p>
+<ul>{requested}</ul>
+</div>"""
+
+
+def _measurements_panel(plan) -> str:
+    if not plan.measurements_required:
+        return "<div class='panel'><div class='k'>MEASURE BEFORE CUTTING</div><p class='muted'>No explicit geometry measurement was requested.</p></div>"
+    rows = []
+    for measurement in plan.measurements_required:
+        blocks = ", ".join(str(value) for value in measurement.blocks_step_numbers) or "none"
+        rows.append(
+            "<div class='card'>"
+            f"<div class='k'>MEASURE / {html.escape(measurement.measurement_id)}</div>"
+            f"<p><strong>What:</strong> {html.escape(measurement.what_to_measure)}</p>"
+            f"<p><strong>How:</strong> {html.escape(measurement.how_to_measure)}</p>"
+            f"<p><strong>Used for:</strong> {html.escape(measurement.used_for)}</p>"
+            f"<p class='muted'><strong>Blocks steps:</strong> {html.escape(blocks)}</p>"
+            "</div>"
+        )
+    return f"<div class='panel'><div class='k'>MEASURE BEFORE CUTTING</div><div class='grid'>{''.join(rows)}</div></div>"
+
+
+def _substitutes_panel(plan) -> str:
+    if not plan.substitute_options:
+        return ""
+    rows = []
+    for option in plan.substitute_options:
+        rows.append(
+            f"<li><strong>{html.escape(option.original_item)}</strong> → {html.escape(option.substitute)}"
+            f"<br><span class='muted'>{html.escape(option.when_allowed)}</span></li>"
+        )
+    return f"<div class='panel'><div class='k'>SUBSTITUTE OPTIONS</div><ul>{''.join(rows)}</ul></div>"
 
 
 def _build_page(session: TransformationSession) -> str:
@@ -343,23 +419,47 @@ def _build_page(session: TransformationSession) -> str:
         if image
         else ""
     )
-    additions = "".join(f"<li>{html.escape(x)}</li>" for x in plan.added_materials) or "<li>none declared</li>"
-    tools = "".join(f"<li>{html.escape(x)}</li>" for x in plan.tools) or "<li>none declared</li>"
-    preparation = "".join(f"<li>{html.escape(x)}</li>" for x in plan.preparation_checks) or "<li>none declared</li>"
-    final_checks = "".join(f"<li>{html.escape(x)}</li>" for x in plan.final_verification) or "<li>none declared</li>"
+    additions = _list_items(list(plan.added_materials))
+    tools = _list_items(list(plan.tools))
+    preparation = _list_items(list(plan.preparation_checks))
+    facts = _list_items(list(plan.known_facts), empty="no verified facts were extracted into this legacy plan")
+    assumptions = _list_items(list(plan.engineering_assumptions), empty="none declared")
+    final_checks = _list_items(list(plan.final_verification))
+    gates = _list_items(list(plan.safety_gates), empty="no additional gate declared")
+    unresolved = _list_items(list(plan.unresolved_before_use), empty="none declared")
+
+    review = session.build_review
+    execution_ready = review is None or review.status == "pass"
     steps = []
-    for step in plan.steps:
-        stop = " · ".join(step.stop_if) if step.stop_if else "none"
-        steps.append(f"""<div class='step'><div class='k'>STEP {step.step_number}</div><h2>{html.escape(step.title)}</h2><p>{html.escape(step.action)}</p><p><strong>Verify:</strong> {html.escape(step.verify)}</p><p class='muted'><strong>Stop if:</strong> {html.escape(stop)}</p></div>""")
-    gates = "".join(f"<li>{html.escape(x)}</li>" for x in plan.safety_gates) or "<li>no additional gate declared</li>"
-    unresolved = "".join(f"<li>{html.escape(x)}</li>" for x in plan.unresolved_before_use) or "<li>none declared</li>"
+    if execution_ready:
+        for step in plan.steps:
+            stop = " · ".join(step.stop_if) if step.stop_if else "none"
+            step_materials = " · ".join(step.added_materials) if step.added_materials else "none"
+            step_tools = " · ".join(step.tools) if step.tools else "none"
+            steps.append(
+                f"""<div class='step'><div class='k'>STEP {step.step_number}</div><h2>{html.escape(step.title)}</h2><p>{html.escape(step.action)}</p><p><strong>Added:</strong> {html.escape(step_materials)}<br><strong>Tools:</strong> {html.escape(step_tools)}</p><p><strong>Verify:</strong> {html.escape(step.verify)}</p><p class='muted'><strong>Stop if:</strong> {html.escape(stop)}</p></div>"""
+            )
+        execution_html = f"<div class='rule'></div>{''.join(steps)}"
+    else:
+        execution_html = (
+            "<div class='panel critic-reject'><div class='k'>BUILD EXECUTION NOT RELEASED</div>"
+            "<p class='warning'>Engineering Critic did not PASS the final handoff. RUINFORM is showing evidence, measurements and gates, but suppressing the step-by-step execution sequence until the plan is corrected or new evidence is supplied.</p></div>"
+        )
+
+    time_label = f"{plan.estimated_time_minutes} min" if plan.estimated_time_minutes else "not estimated"
     return f"""
-<div class='k'>BUILD MASTER / POST-PRODUCTION</div><h1>MAKE IT<br>REAL.</h1>
+<div class='k'>BUILD MASTER V1 / POST-PRODUCTION</div><h1>MAKE IT<br>REAL.</h1>
 <h2>{html.escape(plan.title)}</h2><p>{html.escape(plan.result_description)}</p>
+<p><span class='badge'>{html.escape(plan.plan_version)}</span><span class='badge'>{html.escape(plan.plan_mode.upper())}</span><span class='badge'>{html.escape(plan.difficulty.upper())}</span><span class='badge'>TIME: {html.escape(time_label)}</span></p>
 {visual}
+{_build_critic_panel(review)}
+{_build_revision_panel(session.build_revision_trace)}
+<div class='grid'><div class='panel'><div class='k'>WHAT WE KNOW</div><ul>{facts}</ul></div><div class='panel'><div class='k'>ENGINEERING ASSUMPTIONS / NOT VERIFIED</div><ul>{assumptions}</ul></div></div>
+{_measurements_panel(plan)}
 <div class='grid'><div class='panel'><div class='k'>SHOPPING / ADDED MATERIALS</div><ul>{additions}</ul></div><div class='panel'><div class='k'>TOOLS</div><ul>{tools}</ul></div></div>
+{_substitutes_panel(plan)}
 <div class='panel'><div class='k'>PREFLIGHT / PREPARATION CHECKS</div><ul>{preparation}</ul></div>
-<div class='rule'></div>{''.join(steps)}
+{execution_html}
 <div class='grid'><div class='panel'><div class='k'>SAFETY GATES</div><ul>{gates}</ul></div><div class='panel'><div class='k'>VERIFY BEFORE REAL USE</div><ul>{unresolved}</ul></div></div>
 <div class='panel'><div class='k'>FINAL VERIFICATION / MATCH THE APPROVED VISUAL</div><ul>{final_checks}</ul></div>
 <p class='warning'>{html.escape(plan.maker_note)}</p>
@@ -400,6 +500,8 @@ async def studio_concepts(
                 'selected_candidate_id': None,
                 'render_result': None,
                 'build_plan': None,
+                'build_review': None,
+                'build_revision_trace': None,
             }
         )
     )
@@ -442,7 +544,25 @@ async def studio_render(
             update={'creative_intent': creative_intent}
         )
         session = _studio_store().save(
-            session.model_copy(update={'project_state': project_state, 'render_result': None})
+            session.model_copy(
+                update={
+                    'project_state': project_state,
+                    'render_result': None,
+                    'build_plan': None,
+                    'build_review': None,
+                    'build_revision_trace': None,
+                }
+            )
+        )
+    elif session.build_plan is not None or session.build_review is not None or session.build_revision_trace is not None:
+        session = _studio_store().save(
+            session.model_copy(
+                update={
+                    'build_plan': None,
+                    'build_review': None,
+                    'build_revision_trace': None,
+                }
+            )
         )
     try:
         provider = create_higgsfield_provider()
@@ -480,7 +600,7 @@ async def studio_build(session_id: str) -> str:
     if future is None:
         raise HTTPException(status_code=400, detail='Selected future is unavailable')
     try:
-        plan = await generate_build_plan(
+        package = await generate_reviewed_build_package(
             state=session.project_state,
             future=future,
             accepted_image_url=str(session.render_result.accepted_image_url),
@@ -488,7 +608,16 @@ async def studio_build(session_id: str) -> str:
         )
     except BuildMasterError as exc:
         return _page(f"<div class='k'>BUILD MASTER / ERROR</div><h1>STOP.</h1><p>{html.escape(str(exc))}</p><p><a href='/studio/{html.escape(session_id)}/render'>BACK TO RENDER</a></p>")
-    session = _studio_store().save(session.model_copy(update={'stage': 'build_plan_ready', 'build_plan': plan}))
+    session = _studio_store().save(
+        session.model_copy(
+            update={
+                'stage': 'build_plan_ready',
+                'build_plan': package.plan,
+                'build_review': package.review,
+                'build_revision_trace': package.revision_trace,
+            }
+        )
+    )
     return _page(_build_page(session), title='RUINFORM / MAKE IT REAL')
 
 
