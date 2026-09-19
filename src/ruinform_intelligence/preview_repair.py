@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Literal
 
 from openai import AsyncOpenAI
@@ -36,6 +37,9 @@ class RepairBatch(_StrictModel):
     candidates: list[CandidateForm] = Field(min_length=1, max_length=4)
 
 
+_CRITIC_TAG_RE = re.compile(r"\[([A-Z][A-Z0-9_]+)\]")
+
+
 def _repair_schema(material_ids: list[str], candidate_ids: list[str]) -> dict[str, object]:
     schema = RepairBatch.model_json_schema()
     defs = schema.get("$defs")
@@ -61,6 +65,71 @@ def _repair_schema(material_ids: list[str], candidate_ids: list[str]) -> dict[st
     return schema
 
 
+def critic_failure_tags(review: FeasibilityReview) -> set[str]:
+    """Extract machine-readable critic tags from human-readable feedback.
+
+    The critic currently encodes tags at the start of required-change strings, e.g.
+    `[LOW_PHYSICAL_CREDIBILITY] ...`. Keep the parser tolerant by also checking
+    reasons and unresolved dependencies so the escalation policy is robust to minor
+    prompt formatting changes.
+    """
+
+    text = "\n".join(
+        list(review.required_changes)
+        + list(review.reasons)
+        + list(review.unresolved_dependencies)
+    )
+    return set(_CRITIC_TAG_RE.findall(text))
+
+
+def should_replace_revise(review: FeasibilityReview) -> bool:
+    """Decide whether a REVISE is too structurally weak to preserve.
+
+    0021 proved that a bounded one-pass repair works technically, but a weak concept
+    can waste that single pass if the system tries to polish a mechanism whose core
+    is already failing. Severe REVISE candidates therefore escalate directly to a
+    replacement from a different transformation family.
+    """
+
+    if review.status != "revise":
+        return review.status == "reject"
+
+    tags = critic_failure_tags(review)
+
+    # A concept whose physical logic is both doubtful and visually unreadable needs
+    # a new core, not incremental polish.
+    if {"LOW_PHYSICAL_CREDIBILITY", "MECHANISM_NOT_VISUALLY_READABLE"}.issubset(tags):
+        return True
+
+    # Three independent critic failures are a strong signal that the whole concept
+    # family is fighting the source rather than one local detail needing revision.
+    if len(tags) >= 3:
+        return True
+
+    # Very low physical/buildability scores mean the only repair pass should explore
+    # a simpler family instead of preserving sunk conceptual complexity.
+    if review.feasibility_score < 55 or review.buildability_score < 50:
+        return True
+
+    # Mechanism creep combined with an unreadable or weak signature gesture is a
+    # classic RUINFORM failure pattern: subtract the mechanism by replacing the core.
+    if "MECHANISM_CREEP" in tags and (
+        "WEAK_SIGNATURE_GESTURE" in tags
+        or "MECHANISM_NOT_VISUALLY_READABLE" in tags
+    ):
+        return True
+
+    return False
+
+
+def repair_action(review: FeasibilityReview) -> Literal["revise", "replace"]:
+    if review.status == "reject":
+        return "replace"
+    if should_replace_revise(review):
+        return "replace"
+    return "revise"
+
+
 def build_repair_directives(
     candidates: list[CandidateForm],
     reviews_by_id: dict[str, FeasibilityReview],
@@ -73,7 +142,7 @@ def build_repair_directives(
         directives.append(
             RepairDirective(
                 candidate_id=candidate.candidate_id,
-                action="replace" if review.status == "reject" else "revise",
+                action=repair_action(review),
                 original_candidate=candidate,
                 critic_review=review,
             )
@@ -120,8 +189,9 @@ def _repair_instructions(memory_context: str | None) -> str:
         + "You are not generating a fresh four-concept batch. You are repairing only the flagged slots after a pre-render critic review. "
         + "PASS siblings are locked and must remain untouched. "
         + "For action=revise, preserve the strongest core gesture only if it is worth preserving, then directly remove the critic failure modes with fewer parts, clearer physics and lower craft burden. "
-        + "For action=replace, abandon the rejected mechanism recipe and create a genuinely different transformation family that fits the source photos. "
-        + "A replacement must not be a renamed sibling of the rejected idea or of a surviving PASS concept. "
+        + "For action=replace, ABANDON the current concept thesis, silhouette, mechanism recipe and source-role pattern. Start again from the current source photos and create a genuinely different transformation family. "
+        + "A replacement must not be a renamed or cosmetically simplified version of the rejected/severe-revise idea, and it must not duplicate a surviving PASS concept. "
+        + "For replacement slots, prefer a different dominant source relationship and a simpler physical principle; do not carry over the same failure-causing mechanism merely because the candidate_id stays the same. "
         + "SOURCE ECONOMY: use the smallest coherent subset of current sources. Never add an object merely because it exists in the upload. "
         + "Do not reward source-count coverage. Every used source must earn a structural, material, spatial, functional or narrative role. "
         + "DIVERSITY: compare repaired candidates against the locked survivors. Prefer different primary operators, different dominant source roles and different silhouettes. "
@@ -175,7 +245,7 @@ async def repair_preview_candidates(
                 f"LOCKED SURVIVORS — do not rewrite these; make repaired slots complementary rather than sibling copies: "
                 f"{json.dumps(survivor_payload, ensure_ascii=False)}\n\n"
                 "For REVISE slots, address every required_change that materially affects the concept. "
-                "For REPLACE slots, start from current source geometry/material behavior and choose a different primary transformation family. "
+                "For REPLACE slots, discard the original concept family instead of editing it. Start from current source geometry/material behavior and choose a different primary transformation family, dominant source relationship, and physical principle. "
                 "The repaired concept must still work on a clean neutral background without relying on RUINFORM_WORLD scenery."
             ),
         }
