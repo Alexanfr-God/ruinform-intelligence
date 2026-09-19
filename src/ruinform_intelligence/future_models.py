@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -120,3 +120,4 @@ class FutureFormsResult(BaseModel):
     selected_futures: list[ReviewedFuture]
     needs_regeneration: bool = False
     regeneration_reason: str | None = None
+    retrieval_trace: dict[str, Any] = Field(default_factory=dict)
