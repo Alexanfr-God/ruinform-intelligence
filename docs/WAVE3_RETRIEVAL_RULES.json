@@ -1,0 +1,19 @@
+{
+  "version": "v0.1",
+  "lessons": [
+    {
+      "id": "interaction_leverage",
+      "title": "Interaction leverage over mechanism complexity",
+      "cues": ["light", "lamp", "led", "frame", "artwork", "print", "poster", "shadow", "translucent", "diffuser", "slider", "slide", "pull", "cord", "hinge", "pivot", "shutter", "counterweight", "moving", "kinetic"],
+      "rule": "Prefer one simple physical interaction that creates a large perceptual change. Keep the mechanism visually secondary, physically credible, and achievable with few added parts.",
+      "avoid": "Do not add a mechanism when movement creates little visual change, requires precision engineering disproportionate to the payoff, or becomes the visual hero instead of the effect."
+    },
+    {
+      "id": "interaction_must_read",
+      "title": "Interaction must read in the image",
+      "cues": ["scissors", "handle", "pull", "cord", "lever", "crank", "hinge", "slider", "slide", "rotate", "pivot", "balance", "moving", "kinetic", "control", "switch", "shadow"],
+      "rule": "When WOW depends on interaction, make the causal chain visually legible: INPUT -> MECHANISM -> VISIBLE EFFECT. A viewer should understand the interaction even without reading the concept description.",
+      "avoid": "Reject decorative-looking controls, hidden causal chains, and mechanisms whose effect cannot be inferred from the final object."
+    }
+  ]
+}
