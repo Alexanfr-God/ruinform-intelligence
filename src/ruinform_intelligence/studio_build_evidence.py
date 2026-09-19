@@ -8,7 +8,6 @@ from fastapi.responses import HTMLResponse
 
 from .build_evidence import (
     count_candidate_evidence_rounds,
-    derive_build_evidence_request,
     evidence_property_key,
     parse_physical_value,
     round_marker,
@@ -18,6 +17,7 @@ from .build_evidence import (
 from .build_master import BuildMasterError
 from .models import EvidenceItem
 from . import studio as studio_module
+from .workshop_evidence_ux import derive_workshop_evidence_request
 
 
 router = APIRouter(tags=["studio-build-evidence"])
@@ -75,7 +75,7 @@ async def studio_build_evidence_submit(session_id: str, request: Request) -> str
             title="RUINFORM / BUILD EVIDENCE LIMIT",
         )
 
-    evidence_request = derive_build_evidence_request(
+    evidence_request = derive_workshop_evidence_request(
         plan=session.build_plan,
         review=session.build_review,
         candidate_id=future.candidate.candidate_id,

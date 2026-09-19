@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from .api import app
-from .build_evidence import build_evidence_panel, count_candidate_evidence_rounds, state_for_build_candidate
+from .build_evidence import count_candidate_evidence_rounds, state_for_build_candidate
 from .evidence_api import router as evidence_loop_router
 from .evidence_media import router as evidence_media_router
 from .future_api import router as future_forms_router
@@ -23,6 +23,7 @@ from .studio_evals import router as studio_evals_router
 from .studio_ideas import router as studio_ideas_router
 from .studio_resume_nav import inject_build_back_links, inject_saved_output_panel
 from .studio_reviews import router as studio_reviews_router
+from .workshop_evidence_ux import build_workshop_evidence_panel
 
 
 logger = logging.getLogger(__name__)
@@ -74,9 +75,8 @@ async def _candidate_scoped_reviewed_build_package(**kwargs):
 studio_module.generate_reviewed_build_package = _candidate_scoped_reviewed_build_package
 
 
-# Add the evidence-resume mission to non-PASS MAKE IT REAL pages without duplicating the
-# stable Build Master renderer. The core page still owns the engineering details; this
-# wrapper inserts only the next-action panel.
+# RFM-INT-0024.2 replaces the raw critic dump with a phase-aware workshop contract:
+# the maker supplies simple measurements/observations/photos; RUINFORM derives engineering.
 _original_build_page = studio_module._build_page
 
 
@@ -89,7 +89,7 @@ def _build_page_with_evidence_request(session) -> str:
         or not session.selected_candidate_id
     ):
         return body
-    panel = build_evidence_panel(
+    panel = build_workshop_evidence_panel(
         session_id=session.session_id,
         plan=session.build_plan,
         review=session.build_review,
