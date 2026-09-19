@@ -5,6 +5,7 @@ import os
 
 from openai import AsyncOpenAI
 
+from .build_evidence import build_evidence_image_urls
 from .build_models import BuildCriticReview, BuildPlan
 from .future_models import ReviewedFuture
 from .models import ProjectState
@@ -45,30 +46,30 @@ async def review_build_plan(
 
     model = model or os.getenv("RUINFORM_ENGINEERING_CRITIC_MODEL", DEFAULT_MODEL)
     client = client or AsyncOpenAI()
+    evidence_images = build_evidence_image_urls(state, future.candidate.candidate_id)
+    content: list[dict[str, str]] = [
+        {
+            "type": "input_text",
+            "text": (
+                "Audit this Build Master plan before RUINFORM presents it as a practical handoff.\n\n"
+                "The first attached image is the exact render approved by the user. Verify that the plan reproduces that visual without inventing physical facts.\n\n"
+                f"ADDITIONAL WORKSHOP EVIDENCE PHOTOS: {len(evidence_images)}. If present, they follow the approved render. "
+                "Use them only for visible evidence; do not infer hidden structure, ratings, material grade, or dimensions from appearance.\n\n"
+                f"Project state: {compact_state_json(state)}\n\n"
+                f"Approved future: {future.candidate.model_dump_json()}\n\n"
+                f"Pre-render feasibility review: {future.review.model_dump_json()}\n\n"
+                f"Build plan: {plan.model_dump_json()}"
+            ),
+        },
+        {"type": "input_image", "image_url": accepted_image_url},
+    ]
+    content.extend({"type": "input_image", "image_url": image_url} for image_url in evidence_images)
 
     response = await client.responses.create(
         model=model,
         reasoning={"effort": "medium"},
         instructions=load_engineering_critic_prompt(),
-        input=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": (
-                            "Audit this Build Master plan before RUINFORM presents it as a practical handoff.\n\n"
-                            "The attached image is the exact render approved by the user. Verify that the plan reproduces that visual without inventing physical facts.\n\n"
-                            f"Project state: {compact_state_json(state)}\n\n"
-                            f"Approved future: {future.candidate.model_dump_json()}\n\n"
-                            f"Pre-render feasibility review: {future.review.model_dump_json()}\n\n"
-                            f"Build plan: {plan.model_dump_json()}"
-                        ),
-                    },
-                    {"type": "input_image", "image_url": accepted_image_url},
-                ],
-            }
-        ],
+        input=[{"role": "user", "content": content}],
         text={
             "format": {
                 "type": "json_schema",
