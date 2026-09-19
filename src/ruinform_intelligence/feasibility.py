@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -53,6 +54,20 @@ def _mode_policy(concept_mode: bool) -> str:
     )
 
 
+def _compact_retrieval_trace(trace: dict[str, Any] | None) -> str:
+    if not trace:
+        return "none"
+    compact = {
+        "version": trace.get("version"),
+        "strategy": trace.get("strategy"),
+        "taste_cards": trace.get("taste_cards", []),
+        "evals": trace.get("evals", []),
+        "lessons": trace.get("lessons", []),
+        "shortlisted_ideas": trace.get("shortlisted_ideas", []),
+    }
+    return json.dumps(compact, ensure_ascii=False)[:8000]
+
+
 async def review_candidate_pool(
     *,
     state: ProjectState,
@@ -60,39 +75,48 @@ async def review_candidate_pool(
     concept_mode: bool = False,
     client: AsyncOpenAI | None = None,
     model: str | None = None,
+    reasoning_effort: str | None = None,
+    retrieval_trace: dict[str, Any] | None = None,
 ) -> ReviewBatch:
     model = model or os.getenv("RUINFORM_FEASIBILITY_MODEL", DEFAULT_MODEL)
     client = client or AsyncOpenAI()
+    effort = reasoning_effort or os.getenv("RUINFORM_FEASIBILITY_REASONING", "high")
+    if effort not in {"low", "medium", "high"}:
+        effort = "high"
 
-    response = await client.responses.create(
-        model=model,
-        reasoning={"effort": "high"},
-        instructions=load_feasibility_prompt(),
-        input=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": (
-                            "Review every future form against the physical project state.\n\n"
-                            f"MODE POLICY: {_mode_policy(concept_mode)}\n\n"
-                            f"Project state: {compact_state_json(state)}\n\n"
-                            f"Candidate pool: {pool.model_dump_json()}"
-                        ),
-                    }
-                ],
-            }
-        ],
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": "ruinform_feasibility_reviews",
-                "strict": True,
-                "schema": ReviewBatch.model_json_schema(),
-            }
-        },
-    )
+    try:
+        response = await client.responses.create(
+            model=model,
+            reasoning={"effort": effort},
+            instructions=load_feasibility_prompt(),
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": (
+                                "Review every future form against the physical project state.\n\n"
+                                f"MODE POLICY: {_mode_policy(concept_mode)}\n\n"
+                                f"Project state: {compact_state_json(state)}\n\n"
+                                f"WAVE 3 RETRIEVAL TRACE: {_compact_retrieval_trace(retrieval_trace)}\n\n"
+                                f"Candidate pool: {pool.model_dump_json()}"
+                            ),
+                        }
+                    ],
+                }
+            ],
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "ruinform_feasibility_reviews",
+                    "strict": True,
+                    "schema": ReviewBatch.model_json_schema(),
+                }
+            },
+        )
+    except Exception as exc:
+        raise FeasibilityError(f"Feasibility Critic request failed: {exc}") from exc
 
     if not response.output_text:
         raise FeasibilityError("Feasibility Critic returned no reviews")

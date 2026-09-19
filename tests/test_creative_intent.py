@@ -36,7 +36,7 @@ def test_difficulty_contracts_are_materially_different() -> None:
     assert "radical geometry" in _difficulty_contract("wild")
 
 
-def test_source_participation_contract_pushes_small_sets_toward_full_integration() -> None:
+def test_source_participation_contract_prefers_source_economy_for_small_sets() -> None:
     state = ProjectState(
         materials=[
             MaterialItem(display_name="bottle"),
@@ -45,9 +45,10 @@ def test_source_participation_contract_pushes_small_sets_toward_full_integration
         ]
     )
     text = _source_participation_contract(state)
-    assert "at least two" in text
-    assert "ALL source items" in text
-    assert "token decoration" in text
+    assert "SMALLEST coherent subset" in text
+    assert "No concept is required to use all source items" in text
+    assert "intentional omission is valid" in text
+    assert "at least two concepts should use fewer than the full set" in text
 
 
 def test_visual_director_support_budget_tracks_difficulty() -> None:

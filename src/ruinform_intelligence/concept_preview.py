@@ -6,7 +6,8 @@ import os
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ConfigDict, Field
 
-from .future_models import CandidateForm, FeasibilityReview, FutureFormsResult, ReviewedFuture
+from .feasibility import FeasibilityError, review_candidate_pool
+from .future_models import CandidateForm, CandidatePool, FeasibilityReview, FutureFormsResult, ReviewedFuture
 from .memory_retriever import build_wave3_retrieval_context
 from .models import ProjectState
 from .prompt_loader import load_prompt_file
@@ -84,7 +85,11 @@ def _instructions(mode: str, memory_context: str | None = None) -> str:
         + "Detailed feasibility and engineering validation are intentionally deferred until after selection. "
         + "When exact dimensions are unknown, use scale-to-fit, trim-to-fit, mark-from-real-object, or adjustable-fit language rather than inventing measurements. "
         + "Return exactly four concepts. "
-        + "The four concepts must not be four variations of one retrieved Taste Library card. Transfer different operators to the actual source matter."
+        + "The four concepts must not be four variations of one retrieved Taste Library card. Transfer different operators to the actual source matter. "
+        + "MEMORY INFLUENCE CAP: retrieved memory may contribute an operator or warning, but it must not dictate category, silhouette, mechanism recipe, or the number of source objects used. "
+        + "At least two concepts must emerge primarily from the current source geometry/material behavior. A conditional lesson such as interaction readability applies only if a concept naturally becomes interactive. "
+        + "SOURCE ECONOMY: use the smallest coherent subset that makes the strongest object. Intentional omission is better than token participation. "
+        + "DIVERSITY GATE: no more than two concepts may share the same dominant mechanism family; at least one concept must have no moving mechanism unless the user explicitly requests motion."
         + "\n\nCURRENT MODE: "
         + mode.upper()
         + "\nCandidate IDs must be exactly preview_01 through preview_04. "
@@ -126,15 +131,63 @@ def _source_participation_contract(state: ProjectState) -> str:
         )
     if count <= 4:
         return (
-            f"There are {count} source items. Each concept should normally integrate at least two of them, and at least two of the four concepts "
-            "should integrate ALL source items unless Creative Direction explicitly excludes one. Every used source needs a real structural, functional, "
-            "material, spatial, or narrative role. Do not include a source as token decoration. If a concept intentionally omits a source because using it "
-            "would weaken the idea, state that decision briefly in unresolved_dependencies."
+            f"There are {count} source items. Each concept should use the SMALLEST coherent subset that makes the strongest authored object. "
+            "No concept is required to use all source items. A two-object idea that is clear and memorable is better than a four-object idea with token roles. "
+            "Across the four-concept batch, give each source item at least one meaningful chance when its geometry or material behavior suggests one, but intentional omission is valid. "
+            "Every used source must carry a necessary structural, functional, material, spatial, or narrative role. If removing a source makes the concept stronger, omit it and briefly explain the omission in unresolved_dependencies. "
+            "When there are three or four source items, normally at least two concepts should use fewer than the full set unless Creative Direction explicitly asks to combine everything."
         )
     return (
-        f"There are {count} source items. Do not force all of them into every concept. Each concept should use a coherent subset of at least three when possible, "
-        "and the batch as a whole should explore the full source set. Every selected source must perform a real role rather than act as decoration."
+        f"There are {count} source items. Do not force all of them into every concept. Each concept should use a coherent subset chosen for the strongest single gesture, "
+        "and the batch as a whole should explore the broader source set. Every selected source must perform a real role rather than act as decoration."
     )
+
+
+def _fallback_review(item: PreviewCandidate, *, used_count: int, total_count: int) -> FeasibilityReview:
+    coverage_ratio = used_count / max(1, total_count)
+    material_fit_score = round(100 * coverage_ratio)
+    return FeasibilityReview(
+        candidate_id=item.candidate.candidate_id,
+        status="pass",
+        feasibility_score=item.buildability_hint,
+        material_fit_score=material_fit_score,
+        buildability_score=item.buildability_hint,
+        originality_score=item.originality_hint,
+        artistic_impact_score=item.artistic_impact_hint,
+        usefulness_score=item.usefulness_hint,
+        value_potential_score=item.value_hint,
+        reasons=[
+            "Pre-render critic unavailable; showing Design Brain preview with conservative fallback scoring.",
+            f"Source participation: {used_count}/{total_count} identified source items have an explicit concept role.",
+        ],
+        required_changes=[],
+        unresolved_dependencies=list(item.candidate.unresolved_dependencies),
+    )
+
+
+def _rank_with_gate(review: FeasibilityReview) -> float:
+    gate_score = {"pass": 100.0, "revise": 60.0, "reject": 20.0}[review.status]
+    return round(
+        0.15 * review.feasibility_score
+        + 0.10 * review.material_fit_score
+        + 0.10 * review.buildability_score
+        + 0.20 * review.originality_score
+        + 0.20 * review.artistic_impact_score
+        + 0.05 * review.usefulness_score
+        + 0.10 * review.value_potential_score
+        + 0.10 * gate_score,
+        2,
+    )
+
+
+def _critic_note(review: FeasibilityReview) -> str:
+    if review.status == "pass":
+        reason = review.reasons[0] if review.reasons else "credible direction worth visualizing"
+        return f"PRE-RENDER CRITIC PASS — {reason}"
+    changes = " · ".join(review.required_changes[:2])
+    if not changes:
+        changes = review.reasons[0] if review.reasons else "simplify or rethink before spending render tokens"
+    return f"PRE-RENDER CRITIC {review.status.upper()} — {changes}"
 
 
 async def generate_concept_preview(
@@ -235,7 +288,6 @@ async def generate_concept_preview(
         raise ConceptPreviewError("Design Brain returned invalid structured output") from exc
 
     material_id_set = set(material_ids)
-    reviewed: list[ReviewedFuture] = []
     seen_ids: set[str] = set()
     for item in batch.candidates:
         candidate = item.candidate
@@ -248,34 +300,49 @@ async def generate_concept_preview(
             raise ConceptPreviewError(
                 "Design Brain referenced unknown material IDs: " + ", ".join(sorted(unknown_ids))
             )
-        coverage_ratio = len(used_ids) / max(1, len(material_id_set))
-        material_fit_score = round(100 * coverage_ratio)
-        review = FeasibilityReview(
-            candidate_id=candidate.candidate_id,
-            status="pass",
-            feasibility_score=item.buildability_hint,
-            material_fit_score=material_fit_score,
-            buildability_score=item.buildability_hint,
-            originality_score=item.originality_hint,
-            artistic_impact_score=item.artistic_impact_hint,
-            usefulness_score=item.usefulness_hint,
-            value_potential_score=item.value_hint,
-            reasons=[
-                "Vision-first Design Brain preview using original source photographs, persistent Creative Intent, RUINFORM Skill/Style rules, and selectively retrieved Wave 3 memory; detailed feasibility is intentionally deferred until after visual selection.",
-                f"Source participation: {len(used_ids)}/{len(material_id_set)} identified source items have an explicit concept role.",
-            ],
-            required_changes=[],
-            unresolved_dependencies=list(candidate.unresolved_dependencies),
+
+    preview_pool = CandidatePool(candidates=[item.candidate for item in batch.candidates])
+    critic_error: str | None = None
+    try:
+        critic_batch = await review_candidate_pool(
+            state=state,
+            pool=preview_pool,
+            concept_mode=True,
+            client=client,
+            reasoning_effort=os.getenv("RUINFORM_PRE_RENDER_CRITIC_REASONING", "low"),
+            retrieval_trace=memory.trace,
         )
-        rank = round(
-            0.15 * item.buildability_hint
-            + 0.25 * item.originality_hint
-            + 0.25 * item.artistic_impact_hint
-            + 0.10 * item.usefulness_hint
-            + 0.10 * item.value_hint
-            + 0.15 * material_fit_score,
-            2,
+        critic_by_id = {review.candidate_id: review for review in critic_batch.reviews}
+    except FeasibilityError as exc:
+        critic_error = str(exc)
+        critic_by_id = {}
+
+    reviewed: list[ReviewedFuture] = []
+    critic_trace: list[dict[str, object]] = []
+    for item in batch.candidates:
+        candidate = item.candidate
+        used_ids = {use.material_item_id for use in candidate.material_uses}
+        review = critic_by_id.get(candidate.candidate_id)
+        if review is None:
+            review = _fallback_review(
+                item,
+                used_count=len(used_ids),
+                total_count=len(material_id_set),
+            )
+
+        source_reason = (
+            f"Source participation: {len(used_ids)}/{len(material_id_set)} identified source items have an explicit concept role. "
+            "Coverage itself is not a quality score; source economy is preferred."
         )
+        review = review.model_copy(update={"reasons": list(review.reasons) + [source_reason]})
+
+        gate_note = _critic_note(review)
+        candidate = candidate.model_copy(
+            update={
+                "unresolved_dependencies": [gate_note] + list(candidate.unresolved_dependencies)
+            }
+        )
+        rank = _rank_with_gate(review)
         reviewed.append(
             ReviewedFuture(
                 candidate=candidate,
@@ -285,14 +352,33 @@ async def generate_concept_preview(
                 visual_brief=None,
             )
         )
+        critic_trace.append(
+            {
+                "candidate_id": candidate.candidate_id,
+                "name": candidate.name,
+                "status": review.status,
+                "rank_score": rank,
+                "material_fit_score": review.material_fit_score,
+                "required_changes": list(review.required_changes),
+                "reasons": list(review.reasons[:2]),
+            }
+        )
 
     reviewed.sort(key=lambda value: value.rank_score, reverse=True)
+    retrieval_trace = dict(memory.trace)
+    retrieval_trace["pre_render_critic"] = {
+        "version": "wave3_pre_render_critic_v1",
+        "reasoning_effort": os.getenv("RUINFORM_PRE_RENDER_CRITIC_REASONING", "low"),
+        "error": critic_error,
+        "candidates": critic_trace,
+    }
+
     return FutureFormsResult(
         internal_candidate_count=4,
-        reviewed_candidate_count=0,
+        reviewed_candidate_count=len(critic_by_id),
         revision_attempt_count=0,
         selected_futures=reviewed,
         needs_regeneration=False,
         regeneration_reason=None,
-        retrieval_trace=memory.trace,
+        retrieval_trace=retrieval_trace,
     )
