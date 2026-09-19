@@ -7,6 +7,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, ConfigDict, Field
 
 from .future_models import CandidateForm, FeasibilityReview, FutureFormsResult, ReviewedFuture
+from .memory_retriever import build_wave3_retrieval_context
 from .models import ProjectState
 from .prompt_loader import load_prompt_file
 from .reasoning_state import compact_state_json
@@ -66,10 +67,10 @@ def _preview_schema(material_ids: list[str]) -> dict[str, object]:
     return schema
 
 
-def _instructions(mode: str) -> str:
+def _instructions(mode: str, memory_context: str | None = None) -> str:
     base = load_prompt_file("design_brain.md")
     try:
-        knowledge = load_design_brain_runtime_context()
+        knowledge = memory_context or load_design_brain_runtime_context()
     except TasteLibraryError as exc:
         raise ConceptPreviewError(
             "Design Brain knowledge pack could not be loaded: " + str(exc)
@@ -83,7 +84,7 @@ def _instructions(mode: str) -> str:
         + "Detailed feasibility and engineering validation are intentionally deferred until after selection. "
         + "When exact dimensions are unknown, use scale-to-fit, trim-to-fit, mark-from-real-object, or adjustable-fit language rather than inventing measurements. "
         + "Return exactly four concepts. "
-        + "The four concepts must not be four variations of one Taste Library card. Transfer different operators to the actual source matter."
+        + "The four concepts must not be four variations of one retrieved Taste Library card. Transfer different operators to the actual source matter."
         + "\n\nCURRENT MODE: "
         + mode.upper()
         + "\nCandidate IDs must be exactly preview_01 through preview_04. "
@@ -151,6 +152,17 @@ async def generate_concept_preview(
     if not material_ids:
         raise ConceptPreviewError("Design Brain requires at least one identified material")
 
+    try:
+        memory = build_wave3_retrieval_context(
+            state=state,
+            mode=mode,
+            user_intent=user_intent,
+        )
+    except TasteLibraryError as exc:
+        raise ConceptPreviewError(
+            "Wave 3 memory retrieval could not load RUINFORM knowledge: " + str(exc)
+        ) from exc
+
     material_contract = "\n".join(
         f"- {item.item_id} = {item.display_name}" for item in state.materials
     )
@@ -181,7 +193,7 @@ async def generate_concept_preview(
                 "Supporting hardware is allowed only when it enables the source-driven idea and must remain visually subordinate.\n\n"
                 "The product goal is not generic upcycling. Create desirable post-consumer artifacts with visible source provenance, "
                 "strong silhouette, one authored transformation gesture, and believable material logic. "
-                "Use the Taste Library as a grammar of design moves, never as a catalogue of objects to reproduce."
+                "The Wave 3 memory pack is evidence and design grammar, never a catalogue of objects to reproduce."
             ),
         }
     ]
@@ -203,7 +215,7 @@ async def generate_concept_preview(
     response = await client.responses.create(
         model=model,
         reasoning={"effort": "high"},
-        instructions=_instructions(mode),
+        instructions=_instructions(mode, memory.prompt_context),
         input=[{"role": "user", "content": content}],
         text={
             "format": {
@@ -249,7 +261,7 @@ async def generate_concept_preview(
             usefulness_score=item.usefulness_hint,
             value_potential_score=item.value_hint,
             reasons=[
-                "Vision-first Design Brain preview using original source photographs, persistent Creative Intent, RUINFORM Skill/Style rules, and Taste Library grammar; detailed feasibility is intentionally deferred until after visual selection.",
+                "Vision-first Design Brain preview using original source photographs, persistent Creative Intent, RUINFORM Skill/Style rules, and selectively retrieved Wave 3 memory; detailed feasibility is intentionally deferred until after visual selection.",
                 f"Source participation: {len(used_ids)}/{len(material_id_set)} identified source items have an explicit concept role.",
             ],
             required_changes=[],
@@ -282,4 +294,5 @@ async def generate_concept_preview(
         selected_futures=reviewed,
         needs_regeneration=False,
         regeneration_reason=None,
+        retrieval_trace=memory.trace,
     )
