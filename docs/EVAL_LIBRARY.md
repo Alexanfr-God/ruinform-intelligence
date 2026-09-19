@@ -97,5 +97,12 @@ Target retrieval packet:
 - 2–4 relevant Taste Library operators
 - 1–2 relevant Eval Library successes
 - 1–2 relevant Eval Library warnings/failures
+- only the distilled Wave 3 lessons whose retrieval cues match the current source set and concept direction
 
 This makes the system learn from prior attempts without fine-tuning and without turning the prompt into an ever-growing history dump.
+
+Distilled reusable lessons live in:
+
+`docs/WAVE3_RETRIEVAL_LESSONS.md`
+
+Important: these lessons are **conditional memory**, not permanent prompt bloat. A lesson should influence Design Brain only when the current materials, intended interaction, or failure pattern make it relevant.
