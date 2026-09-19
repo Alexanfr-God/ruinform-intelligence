@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from .build_models import BuildPlan
+from .build_models import BuildCriticReview, BuildPlan, BuildRevisionTrace
 from .future_models import FutureFormsResult
 from .models import ProjectState
 from .render_models import RenderResult
@@ -43,6 +43,8 @@ class TransformationSession(BaseModel):
     selected_candidate_id: str | None = None
     render_result: RenderResult | None = None
     build_plan: BuildPlan | None = None
+    build_review: BuildCriticReview | None = None
+    build_revision_trace: BuildRevisionTrace | None = None
     created_at_iso: str = Field(default_factory=utc_now_iso)
     updated_at_iso: str = Field(default_factory=utc_now_iso)
 
