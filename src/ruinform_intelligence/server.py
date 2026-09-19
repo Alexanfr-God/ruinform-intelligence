@@ -21,6 +21,7 @@ from .studio_build_evidence import router as studio_build_evidence_router
 from .studio_controls import router as studio_controls_router
 from .studio_evals import router as studio_evals_router
 from .studio_ideas import router as studio_ideas_router
+from .studio_resume_nav import inject_build_back_links, inject_saved_output_panel
 from .studio_reviews import router as studio_reviews_router
 
 
@@ -41,6 +42,18 @@ def _ensure_review_schema() -> None:
 # callable for a bounded one-pass self-healing wrapper. PASS ideas remain locked;
 # REVISE/REJECT slots may be repaired/replaced once before the user sees them.
 studio_module.generate_concept_preview = generate_self_healing_preview
+
+
+# RFM-INT-0024.1 fixes a navigation trap: BACK TO FUTURES used to strand users away
+# from an already-approved render/build even though the durable session still had both.
+_original_concepts_page = studio_module._concepts_page
+
+
+def _concepts_page_with_resume_links(session) -> str:
+    return inject_saved_output_panel(_original_concepts_page(session), session)
+
+
+studio_module._concepts_page = _concepts_page_with_resume_links
 
 
 # RFM-INT-0024 keeps build evidence scoped to the approved candidate. Evidence from an
@@ -95,6 +108,18 @@ def _build_page_with_evidence_request(session) -> str:
 
 
 studio_module._build_page = _build_page_with_evidence_request
+
+
+# Keep a direct route back to the approved visual from MAKE IT REAL. This is deliberately
+# a UI-only wrapper: no session state is changed and no model/image call is triggered.
+_evidence_build_page = studio_module._build_page
+
+
+def _build_page_with_resume_nav(session) -> str:
+    return inject_build_back_links(_evidence_build_page(session), session)
+
+
+studio_module._build_page = _build_page_with_resume_nav
 
 
 # Keep the most-used Studio destinations visible on every Studio page.
