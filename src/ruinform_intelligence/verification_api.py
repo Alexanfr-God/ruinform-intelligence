@@ -1,0 +1,71 @@
+from __future__ import annotations
+
+import base64
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
+
+from .live_api import get_session
+from .verification import VerificationError, VerificationOutput, verify_physical_build
+
+
+router = APIRouter(prefix="/v1/live-transformations", tags=["live-verification"])
+_ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+_MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+
+
+async def _upload_to_data_url(upload: UploadFile, *, index: int) -> str:
+    media_type = upload.content_type or ""
+    if media_type not in _ALLOWED_IMAGE_TYPES:
+        raise ValueError(f"Unsupported verification image type for image {index}: {media_type or 'unknown'}")
+    raw = await upload.read(_MAX_UPLOAD_BYTES + 1)
+    if not raw:
+        raise ValueError(f"Verification image {index} is empty")
+    if len(raw) > _MAX_UPLOAD_BYTES:
+        raise ValueError(f"Verification image {index} exceeds 8 MB")
+    return f"data:{media_type};base64,{base64.b64encode(raw).decode('ascii')}"
+
+
+@router.post("/{session_id}/verify-upload", response_model=VerificationOutput)
+async def verify_upload(
+    session_id: str,
+    images: list[UploadFile] = File(...),
+) -> VerificationOutput:
+    if not 2 <= len(images) <= 3:
+        raise HTTPException(status_code=400, detail="Upload 2 or 3 photos of the physical build")
+
+    session = get_session(session_id)
+    render_result = session.render_result
+    reference_image_url = render_result.accepted_image_url if render_result is not None else None
+    if not reference_image_url:
+        raise HTTPException(status_code=409, detail="Render the selected future before verification")
+
+    future = None
+    if session.futures is not None and session.selected_candidate_id:
+        future = next(
+            (
+                item
+                for item in session.futures.selected_futures
+                if item.candidate.candidate_id == session.selected_candidate_id
+            ),
+            None,
+        )
+
+    try:
+        build_image_urls = [
+            await _upload_to_data_url(image, index=index)
+            for index, image in enumerate(images, start=1)
+        ]
+        return await verify_physical_build(
+            reference_image_url=reference_image_url,
+            build_image_urls=build_image_urls,
+            concept_name=future.candidate.name if future is not None else None,
+            concept_description=(
+                future.candidate.one_line or future.candidate.transformation_logic
+                if future is not None
+                else None
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except VerificationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
