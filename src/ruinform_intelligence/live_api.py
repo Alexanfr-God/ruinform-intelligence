@@ -4,6 +4,7 @@ import asyncio
 import base64
 import logging
 import os
+from typing import Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field, HttpUrl
@@ -77,6 +78,8 @@ class DiscoverRequest(BaseModel):
 class RenderRequestBody(BaseModel):
     aspect_ratio: str = Field(default="4:5", max_length=16)
     max_attempts: int = Field(default=3, ge=1, le=5)
+    user_prompt: str | None = Field(default=None, max_length=1200)
+    presentation_mode: Literal["standard", "post_apocalyptic"] = "post_apocalyptic"
 
 
 async def _discover_futures_job(session_id: str, payload: DiscoverRequest) -> None:
@@ -236,6 +239,8 @@ async def render(session_id: str, candidate_id: str, payload: RenderRequestBody)
                 store=store(),
                 aspect_ratio=payload.aspect_ratio,
                 max_attempts=payload.max_attempts,
+                user_prompt=payload.user_prompt,
+                presentation_mode=payload.presentation_mode,
             )
         finally:
             if cleanup_client is not None:
