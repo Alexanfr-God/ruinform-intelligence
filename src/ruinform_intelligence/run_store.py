@@ -45,6 +45,8 @@ class TransformationSession(BaseModel):
     build_plan: BuildPlan | None = None
     build_review: BuildCriticReview | None = None
     build_revision_trace: BuildRevisionTrace | None = None
+    last_error: str | None = None
+    last_error_stage: str | None = None
     created_at_iso: str = Field(default_factory=utc_now_iso)
     updated_at_iso: str = Field(default_factory=utc_now_iso)
 
