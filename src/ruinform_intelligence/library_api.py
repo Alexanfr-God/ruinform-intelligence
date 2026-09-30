@@ -4,7 +4,7 @@ import base64
 from uuid import uuid4
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -14,6 +14,8 @@ from .library_store import (
     create_library_store,
     generation_id_for,
 )
+from .live_api import _upload_to_data_url, get_session, store
+from .live_evidence import continue_session_evidence
 from .render_models import RenderResult
 from .review_store import ReviewItemNotFound, capture_session_render, create_review_store
 from .run_store import SessionNotFound, create_run_store, utc_now_iso
@@ -74,6 +76,19 @@ def _entry_view(entry: LibraryEntry, *, reveal_owner: bool = False) -> dict[str,
     )[:600]
     category = str(concept.get("category") or "object")[:80]
 
+    source_pairs = list(zip(review.source_material_ids, review.source_items))
+    raw_uses = concept.get("material_uses") if isinstance(concept.get("material_uses"), list) else []
+    used_ids: list[str] = []
+    for raw in raw_uses:
+        if not isinstance(raw, dict):
+            continue
+        material_id = str(raw.get("material_item_id") or "").strip()
+        if material_id and material_id not in used_ids:
+            used_ids.append(material_id)
+    used_set = set(used_ids)
+    used_source_items = [name for material_id, name in source_pairs if material_id in used_set]
+    used_source_ids = [material_id for material_id, _name in source_pairs if material_id in used_set]
+
     payload: dict[str, object] = {
         "id": entry.generation_id,
         "title": review.candidate_name,
@@ -83,6 +98,9 @@ def _entry_view(entry: LibraryEntry, *, reveal_owner: bool = False) -> dict[str,
         "oneLine": one_line,
         "sourceItems": review.source_items[:12],
         "sourceCount": len(review.source_items),
+        "usedSourceItems": used_source_items[:12],
+        "usedSourceIds": used_source_ids[:12],
+        "usedSourceCount": len(used_source_items),
         "isPublic": entry.is_public,
         "parentGenerationId": entry.parent_generation_id,
         "createdAt": entry.created_at_iso,
@@ -202,6 +220,42 @@ def fork_generation(generation_id: str, payload: ForkRequest) -> dict[str, objec
         "sessionId": saved.session_id,
         "sourceGenerationId": generation_id,
         "generation": _entry_view(entry),
+    }
+
+
+@router.post("/branch-evidence/{session_id}")
+async def add_branch_evidence(
+    session_id: str,
+    images: list[UploadFile] = File(...),
+    user_context: str = Form(default=""),
+) -> dict[str, object]:
+    """Add new physical matter to a forked generation without losing its lineage.
+
+    The fork already contains the parent's evidence. These uploads are appended to that
+    evidence set, while futures/render state is intentionally cleared so the Design Brain
+    must create a genuinely new evolution rather than silently reusing the parent render.
+    """
+    if not 1 <= len(images) <= 8:
+        raise HTTPException(status_code=400, detail="Upload between 1 and 8 images")
+    new_urls: list[str] = []
+    try:
+        for index, image in enumerate(images, start=1):
+            new_urls.append(await _upload_to_data_url(image, index=index))
+        updated = await continue_session_evidence(
+            session=get_session(session_id),
+            new_image_urls=new_urls,
+            user_statement=user_context.strip() or "New matter added to evolve an archived RUINFORM future.",
+            measurements=[],
+            store=store(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "ok": True,
+        "sessionId": updated.session_id,
+        "projectId": updated.project_id,
+        "stage": updated.stage,
+        "projectState": updated.project_state.model_dump(mode="json"),
     }
 
 
