@@ -37,38 +37,68 @@ class PreviewCandidate(_StrictModel):
 
 
 class PreviewBatch(_StrictModel):
-    candidates: list[PreviewCandidate] = Field(min_length=4, max_length=4)
+    candidates: list[PreviewCandidate] = Field(min_length=2, max_length=4)
 
 
-def _preview_schema(material_ids: list[str]) -> dict[str, object]:
-    """Lock structured output to the material IDs that actually exist in this project."""
+def _candidate_ids(candidate_count: int) -> list[str]:
+    if not 2 <= candidate_count <= 4:
+        raise ConceptPreviewError("Design Brain candidate count must be between 2 and 4")
+    return [f"preview_{index:02d}" for index in range(1, candidate_count + 1)]
+
+
+def _preview_schema(material_ids: list[str], candidate_count: int) -> dict[str, object]:
+    """Lock structured output to real materials and the requested batch size."""
     schema = PreviewBatch.model_json_schema()
+    properties = schema.get("properties")
+    if isinstance(properties, dict):
+        candidates = properties.get("candidates")
+        if isinstance(candidates, dict):
+            candidates["minItems"] = candidate_count
+            candidates["maxItems"] = candidate_count
+
     defs = schema.get("$defs")
     if not isinstance(defs, dict):
         return schema
 
     material_use = defs.get("MaterialUse")
     if isinstance(material_use, dict):
-        properties = material_use.get("properties")
-        if isinstance(properties, dict):
-            properties["material_item_id"] = {
+        material_properties = material_use.get("properties")
+        if isinstance(material_properties, dict):
+            material_properties["material_item_id"] = {
                 "type": "string",
                 "enum": material_ids,
             }
 
     candidate_form = defs.get("CandidateForm")
     if isinstance(candidate_form, dict):
-        properties = candidate_form.get("properties")
-        if isinstance(properties, dict):
-            properties["candidate_id"] = {
+        candidate_properties = candidate_form.get("properties")
+        if isinstance(candidate_properties, dict):
+            candidate_properties["candidate_id"] = {
                 "type": "string",
-                "enum": ["preview_01", "preview_02", "preview_03", "preview_04"],
+                "enum": _candidate_ids(candidate_count),
             }
 
     return schema
 
 
-def _instructions(mode: str, memory_context: str | None = None) -> str:
+def _batch_contract(candidate_count: int) -> str:
+    if candidate_count == 2:
+        return (
+            "Return exactly two concepts. They must be genuinely different in their primary transformation move, source relationship, and silhouette. "
+            "Do not spend one slot on a weaker sibling of the other. At least one concept should avoid a moving mechanism unless the user explicitly requests motion."
+        )
+    if candidate_count == 3:
+        return (
+            "Return exactly three concepts. Use three clearly different transformation families. "
+            "Do not let one dominant source, mechanism, or Taste Library precedent lead all three. At least one concept should avoid a moving mechanism unless the user explicitly requests motion."
+        )
+    return (
+        "Return exactly four concepts. Use at least three genuinely different transformation families. "
+        "No more than two concepts may share one dominant mechanism family. At least one concept should avoid a moving mechanism unless the user explicitly requests motion."
+    )
+
+
+def _instructions(mode: str, memory_context: str | None = None, candidate_count: int = 4) -> str:
     base = load_prompt_file("design_brain.md")
     try:
         knowledge = memory_context or load_design_brain_runtime_context()
@@ -77,26 +107,25 @@ def _instructions(mode: str, memory_context: str | None = None) -> str:
             "Design Brain knowledge pack could not be loaded: " + str(exc)
         ) from exc
 
+    candidate_ids = ", ".join(_candidate_ids(candidate_count))
     return (
         base
         + "\n\n"
         + knowledge
-        + "\n\nPREVIEW stage: this is concept exploration, not engineering approval. "
+        + "\n\nRUNTIME BATCH SIZE OVERRIDE: any static Design Brain text mentioning four concepts is generic guidance. "
+        + f"For THIS request, {_batch_contract(candidate_count)} "
+        + "This runtime count is authoritative. "
+        + "PREVIEW stage: this is concept exploration, not engineering approval. "
         + "Detailed feasibility and engineering validation are intentionally deferred until after selection. "
         + "When exact dimensions are unknown, use scale-to-fit, trim-to-fit, mark-from-real-object, or adjustable-fit language rather than inventing measurements. "
-        + "Return exactly four concepts. "
-        + "The four concepts must not be four variations of one retrieved Taste Library card. Transfer different operators to the actual source matter. "
         + "MEMORY INFLUENCE CAP: retrieved memory may contribute an operator or warning, but it must not dictate category, silhouette, mechanism recipe, or the number of source objects used. "
-        + "At least two concepts must emerge primarily from the current source geometry/material behavior. A conditional lesson such as interaction readability applies only if a concept naturally becomes interactive. "
+        + "At least half of the requested concepts must emerge primarily from the current source geometry/material behavior. A conditional lesson such as interaction readability applies only if a concept naturally becomes interactive. "
         + "SOURCE ECONOMY: use the smallest coherent subset that makes the strongest object. Intentional omission is better than token participation. "
-        + "DIVERSITY CONTRACT: across the four futures use at least three genuinely different transformation families. Category labels do not count as diversity. "
-        + "Do not return four products that all depend on the same dominant source, the same tension/balance trick, or the same mechanism with different purposes. "
-        + "No more than two concepts may share one dominant mechanism family. At least one concept must have no moving mechanism unless the user explicitly requests motion. "
-        + "When three or more source items exist, vary source subsets across the batch; if one object is the obvious visual anchor, do not automatically make it the hero of all four futures. "
-        + "Before returning, compare the four concepts side by side. If two are siblings, keep the stronger one and replace the weaker with a different operator family."
+        + "When three or more source items exist, vary source subsets across the batch; if one object is the obvious visual anchor, do not automatically make it the hero of every future. "
+        + "Before returning, compare the concepts side by side. If two are siblings, keep the stronger one and replace the weaker with a different operator family."
         + "\n\nCURRENT MODE: "
         + mode.upper()
-        + "\nCandidate IDs must be exactly preview_01 through preview_04. "
+        + f"\nCandidate IDs must be exactly: {candidate_ids}. "
         + "Scores are directional hints for preview UX only, never safety certification."
     )
 
@@ -127,30 +156,26 @@ def _creative_direction(state: ProjectState, user_intent: str | None) -> str:
     return stored or extra or "OPEN EXPLORATION — surprise the user within RUINFORM rules."
 
 
-def _source_participation_contract(state: ProjectState) -> str:
+def _source_participation_contract(state: ProjectState, candidate_count: int) -> str:
     count = len(state.materials)
     if count <= 1:
         return (
-            "There is one source item. It must remain the unmistakable origin of the concept and carry the primary design gesture."
+            "There is one source item. It must remain the unmistakable origin of each concept and carry the primary design gesture."
         )
     if count <= 4:
         return (
-            f"There are {count} source items. Each concept should use the SMALLEST coherent subset that makes the strongest authored object. "
-            "No concept is required to use all source items. A two-object idea that is clear and memorable is better than a four-object idea with token roles. "
-            "Across the four-concept batch, give each source item at least one meaningful chance when its geometry or material behavior suggests one, but intentional omission is valid. "
-            "Every used source must carry a necessary structural, functional, material, spatial, or narrative role. If removing a source makes the concept stronger, omit it and briefly explain the omission in unresolved_dependencies. "
-            "When there are three or four source items, normally at least two concepts should use fewer than the full set unless Creative Direction explicitly asks to combine everything. "
-            "Also vary which source carries the signature gesture: do not make the same obvious source the hero in all four futures merely because it is visually large or familiar."
+            f"There are {count} source items and {candidate_count} concept slots. Each concept should use the SMALLEST coherent subset that makes the strongest authored object. "
+            "No concept is required to use all source items. A two-object idea that is clear and memorable is better than a crowded object with token roles. "
+            "Across the batch, vary which source carries the signature gesture when the material behavior supports it. Intentional omission is valid. "
+            "Every used source must carry a necessary structural, functional, material, spatial, or narrative role. If removing a source makes the concept stronger, omit it and briefly explain the omission in unresolved_dependencies."
         )
     return (
-        f"There are {count} source items. Do not force all of them into every concept. Each concept should use a coherent subset chosen for the strongest single gesture, "
+        f"There are {count} source items and {candidate_count} concept slots. Do not force all sources into every concept. Each concept should use a coherent subset chosen for the strongest single gesture, "
         "and the batch as a whole should explore the broader source set. Every selected source must perform a real role rather than act as decoration."
     )
 
 
 def _fallback_review(item: PreviewCandidate, *, used_count: int, total_count: int) -> FeasibilityReview:
-    # The fallback must not reward raw source-count coverage. It preserves the
-    # Design Brain hints and treats material fit as a neutral, conservative score.
     material_fit_score = 65 if used_count else 20
     return FeasibilityReview(
         candidate_id=item.candidate.candidate_id,
@@ -201,9 +226,11 @@ async def generate_concept_preview(
     state: ProjectState,
     mode: str = "hybrid",
     user_intent: str | None = None,
+    candidate_count: int = 4,
     client: AsyncOpenAI | None = None,
     model: str | None = None,
 ) -> FutureFormsResult:
+    _candidate_ids(candidate_count)
     model = model or os.getenv("RUINFORM_CONCEPT_PREVIEW_MODEL", DEFAULT_MODEL)
     client = client or AsyncOpenAI()
 
@@ -230,13 +257,13 @@ async def generate_concept_preview(
         {
             "type": "input_text",
             "text": (
-                "Invent four RUINFORM futures from the ACTUAL source photographs attached to this message. "
+                f"Invent exactly {candidate_count} RUINFORM futures from the ACTUAL source photographs attached to this message. "
                 "Study the images directly before proposing concepts. Do not treat the ProjectState text as a replacement for visual inspection.\n\n"
                 f"Project state: {compact_state_json(state)}\n\n"
                 "MATERIAL ID CONTRACT — material_uses may reference ONLY these exact IDs; never invent or rewrite an ID:\n"
                 f"{material_contract}\n\n"
                 "SOURCE PARTICIPATION CONTRACT:\n"
-                f"{_source_participation_contract(state)}\n\n"
+                f"{_source_participation_contract(state, candidate_count)}\n\n"
                 "CREATIVE DIRECTION CONTRACT:\n"
                 f"{_creative_direction(state, user_intent)}\n"
                 "Treat explicit constraints such as 'no electronics', 'keep intact', 'wall object', or 'useful' as strong project guidance. "
@@ -251,9 +278,9 @@ async def generate_concept_preview(
                 "not from grime, signage, random hardware, or cinematic background. Reject school-project logic where one object is merely taped, clipped, or bracketed next to another. "
                 "Supporting hardware is allowed only when it enables the source-driven idea and must remain visually subordinate.\n\n"
                 "BATCH SELF-CHECK BEFORE RETURNING:\n"
-                "Read all four proposals as one set. They must differ in the primary transformation move, not merely in category or use case. "
-                "If three proposals all revolve around the umbrella, wheel, bottle, lamp, or another obvious hero source in the same role, replace at least one with a future where another source relationship leads. "
-                "If three proposals all rely on tension, balance, suspension, or kinetic linkage, replace at least one with subtraction, recomposition, latent-form discovery, repetition, surface/material transformation, or a simple functional reassignment.\n\n"
+                f"Read all {candidate_count} proposals as one set. They must differ in the primary transformation move, not merely in category or use case. "
+                "If the proposals revolve around the same obvious hero source in the same role, replace the weaker one with a future where another source relationship leads. "
+                "If most proposals rely on tension, balance, suspension, or kinetic linkage, replace one with subtraction, recomposition, latent-form discovery, repetition, surface/material transformation, or a simple functional reassignment.\n\n"
                 "The product goal is not generic upcycling. Create desirable post-consumer artifacts with visible source provenance, "
                 "strong silhouette, one authored transformation gesture, and believable material logic. "
                 "The Wave 3 memory pack is evidence and design grammar, never a catalogue of objects to reproduce."
@@ -278,14 +305,14 @@ async def generate_concept_preview(
     response = await client.responses.create(
         model=model,
         reasoning={"effort": "high"},
-        instructions=_instructions(mode, memory.prompt_context),
+        instructions=_instructions(mode, memory.prompt_context, candidate_count),
         input=[{"role": "user", "content": content}],
         text={
             "format": {
                 "type": "json_schema",
                 "name": "ruinform_concept_preview",
                 "strict": True,
-                "schema": _preview_schema(material_ids),
+                "schema": _preview_schema(material_ids, candidate_count),
             }
         },
     )
@@ -296,6 +323,10 @@ async def generate_concept_preview(
         batch = PreviewBatch.model_validate(json.loads(response.output_text))
     except (json.JSONDecodeError, ValueError) as exc:
         raise ConceptPreviewError("Design Brain returned invalid structured output") from exc
+    if len(batch.candidates) != candidate_count:
+        raise ConceptPreviewError(
+            f"Design Brain returned {len(batch.candidates)} concepts; expected {candidate_count}"
+        )
 
     material_id_set = set(material_ids)
     seen_ids: set[str] = set()
@@ -379,12 +410,13 @@ async def generate_concept_preview(
     retrieval_trace["pre_render_critic"] = {
         "version": "wave3_pre_render_critic_v2",
         "reasoning_effort": os.getenv("RUINFORM_PRE_RENDER_CRITIC_REASONING", "low"),
+        "candidate_budget": candidate_count,
         "error": critic_error,
         "candidates": critic_trace,
     }
 
     return FutureFormsResult(
-        internal_candidate_count=4,
+        internal_candidate_count=candidate_count,
         reviewed_candidate_count=len(critic_by_id),
         revision_attempt_count=0,
         selected_futures=reviewed,
