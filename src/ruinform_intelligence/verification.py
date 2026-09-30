@@ -55,6 +55,16 @@ def _input(
                 "identity and placement, construction logic/major joins, and distinctive details. Do not claim "
                 "structural safety, authenticity, material chemistry, ownership, or engineering certification. "
                 "If the photos do not show enough of the object, reduce confidence and explain what view is missing.\n\n"
+                "EVIDENCE VALIDITY RULES:\n"
+                "- Physical-build photos must be independent photographic evidence of a real object.\n"
+                "- If a submitted physical photo appears to be the generated reference itself, a screenshot/export of it, "
+                "or a near-identical digital copy with the same framing, background, lighting and image details, treat that "
+                "photo as invalid evidence. If all submitted evidence is invalid this way, use weak_match, overall_match <= 10, "
+                "confidence <= 20, and request real photographs of the physical object.\n"
+                "- Repeated or near-duplicate physical photos count as one view, not multiple independent views. If all physical "
+                "photos repeat substantially the same angle, confidence must be <= 65 and next_capture_request must ask for a "
+                "meaningfully different side/rear/detail view. Do not award strong_match merely because the same view was repeated.\n"
+                "- A very high score requires visible agreement in the actual object, not pixel-level similarity caused by reused digital imagery.\n\n"
                 f"Concept name: {concept_name or 'selected RUINFORM future'}\n"
                 f"Concept description: {concept_description or 'no additional description supplied'}\n"
                 f"Physical photo count: {len(build_image_urls)}"
@@ -70,11 +80,12 @@ def _input(
         {
             "type": "input_text",
             "text": (
-                "Return a calibrated visual match assessment. overall_match is the headline similarity score. "
-                "Use strong_match only when the major form and distinctive design language are clearly preserved; "
-                "partial_match when the concept is recognizable but meaningful geometry/material/detail differences exist; "
-                "weak_match when the built object does not visually preserve the concept. Keep matching_features and "
-                "deviations concise and observable."
+                "Return a calibrated physical-build visual match assessment. overall_match is the headline verified-build "
+                "fidelity score, so evidence quality matters: do not turn raw pixel/image similarity into a verification score. "
+                "Use strong_match only when the major form and distinctive design language are clearly preserved by valid physical evidence; "
+                "partial_match when the concept is recognizable but meaningful geometry/material/detail differences exist or coverage is limited; "
+                "weak_match when the built object does not visually preserve the concept or when the supplied evidence is not credible physical evidence. "
+                "Keep matching_features and deviations concise and observable."
             ),
         }
     )
@@ -102,7 +113,9 @@ async def verify_physical_build(
             model=model,
             instructions=(
                 "Be conservative, visual, and evidence-bound. Never reward a result just because it is aesthetically pleasing. "
-                "Never infer unseen sides. A match score is a design-comparison aid, not a safety or authenticity certificate."
+                "Never infer unseen sides. First judge whether the submitted physical photos are credible, independent views of a real build. "
+                "Do not let copied reference imagery or repeated near-identical views inflate match or confidence. "
+                "A match score is a design-comparison aid, not a safety or authenticity certificate."
             ),
             input=_input(
                 reference_image_url=reference_image_url,
