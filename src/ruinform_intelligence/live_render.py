@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from .evidence_media import externalize_state_for_render
 from .render_director import VisualDirectorError, fallback_visual_direction, generate_visual_direction, select_render_mode
@@ -23,6 +24,8 @@ async def render_session_candidate(
     store: SqliteRunStore,
     aspect_ratio: str = "4:5",
     max_attempts: int = 3,
+    user_prompt: str | None = None,
+    presentation_mode: Literal["standard", "post_apocalyptic"] = "post_apocalyptic",
 ) -> TransformationSession:
     if isinstance(provider, tuple):
         provider = provider[0]
@@ -52,13 +55,36 @@ async def render_session_candidate(
         session_id=session.session_id,
     )
 
+    # Render controls are intentionally request-scoped. They guide this image only and do not
+    # rewrite the durable project state or the selected future. This keeps a user's optional
+    # render note and presentation choice from leaking into later projects or build evidence.
+    clean_user_prompt = (user_prompt or "").strip()[:1200]
+    existing_direction = (render_state.creative_intent.direction or "").strip()
+    if clean_user_prompt:
+        render_direction = (
+            f"{existing_direction}\n\nRENDER-SPECIFIC USER NOTE: {clean_user_prompt}"
+            if existing_direction
+            else f"RENDER-SPECIFIC USER NOTE: {clean_user_prompt}"
+        )
+    else:
+        render_direction = existing_direction or None
+    render_intent = render_state.creative_intent.model_copy(
+        update={
+            "direction": render_direction,
+            "background_mode": "ruinform_world" if presentation_mode == "post_apocalyptic" else "clean_studio",
+        }
+    )
+    render_state = render_state.model_copy(update={"creative_intent": render_intent})
+
     if concept_mode:
         render_mode = select_render_mode(future)
         logger.info(
-            "render director:start session=%s candidate=%s mode=%s",
+            "render director:start session=%s candidate=%s mode=%s presentation=%s user_note=%s",
             session.session_id,
             candidate_id,
             render_mode,
+            presentation_mode,
+            bool(clean_user_prompt),
         )
         try:
             direction = await generate_visual_direction(
@@ -87,8 +113,7 @@ async def render_session_candidate(
             )
 
         # Visual-first path stays single-pass at the image provider. The added Visual Director
-        # is a lightweight reasoning pass that sees the real source images and resolves hero /
-        # secondary / accent hierarchy before Higgsfield receives the prompt.
+        # sees the real source images plus the request-scoped user note/presentation choice.
         request = compile_preview_render_request(
             state=render_state,
             future=future,
@@ -124,7 +149,7 @@ async def render_session_candidate(
     if future.visual_brief is None:
         logger.info("render visual-brief:start session=%s candidate=%s", session.session_id, candidate_id)
         brief = await generate_visual_brief(
-            state=session.project_state,
+            state=render_state,
             candidate=future.candidate,
             review=future.review,
             concept_mode=concept_mode,
