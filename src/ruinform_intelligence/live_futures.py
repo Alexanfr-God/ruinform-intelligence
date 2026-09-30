@@ -1,15 +1,40 @@
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
-from .concept_preview import generate_concept_preview
 from .evidence_gate import can_advance_to_ideation
 from .future_models import FuturePreferences
 from .future_pipeline import discover_future_forms
 from .run_store import SqliteRunStore, TransformationSession
+from .self_healing_preview import generate_concept_preview
 
 
 logger = logging.getLogger("ruinform.live_futures")
+ConceptMode = Literal["hybrid", "art", "buildable", "functional"]
+DifficultyMode = Literal["easy", "medium", "wild"]
+_VISIBLE_FUTURE_COUNT = 2
+
+
+def _visible_preview(futures):
+    """Think broadly, expose narrowly.
+
+    The Design Brain still invents/reviews four futures internally. The live Workshop
+    only receives the two strongest non-rejected directions so the UI stays fast and
+    decisive without throwing away the larger internal search space.
+    """
+    ranked = list(futures.selected_futures)
+    usable = [item for item in ranked if item.review.status != "reject"]
+    chosen = usable[:_VISIBLE_FUTURE_COUNT]
+    if len(chosen) < _VISIBLE_FUTURE_COUNT:
+        chosen_ids = {item.candidate.candidate_id for item in chosen}
+        chosen.extend(
+            item
+            for item in ranked
+            if item.candidate.candidate_id not in chosen_ids
+        )
+        chosen = chosen[:_VISIBLE_FUTURE_COUNT]
+    return futures.model_copy(update={"selected_futures": chosen})
 
 
 async def discover_session_futures(
@@ -19,6 +44,8 @@ async def discover_session_futures(
     user_intent: str | None,
     max_revision_rounds: int,
     store: SqliteRunStore,
+    mode: ConceptMode = "hybrid",
+    difficulty_mode: DifficultyMode | None = None,
 ) -> TransformationSession:
     verified_ready = can_advance_to_ideation(session.project_state)
     concept_ready = session.reasoning_mode == "concept" and session.concept_mode_acknowledged
@@ -29,22 +56,41 @@ async def discover_session_futures(
         update={"concept_mode": bool(concept_ready)}
     )
 
+    working_state = session.project_state
+    if difficulty_mode is not None:
+        working_state = working_state.model_copy(
+            update={
+                "creative_intent": working_state.creative_intent.model_copy(
+                    update={"difficulty_mode": difficulty_mode}
+                )
+            }
+        )
+
     if concept_ready:
-        logger.info("futures vision-preview:start session=%s", session.session_id)
+        logger.info(
+            "futures vision-preview:start session=%s mode=%s difficulty=%s",
+            session.session_id,
+            mode,
+            working_state.creative_intent.difficulty_mode,
+        )
         futures = await generate_concept_preview(
-            state=session.project_state,
-            mode="hybrid",
+            state=working_state,
+            mode=mode,
             user_intent=user_intent,
         )
+        internal_visible = len(futures.selected_futures)
+        futures = _visible_preview(futures)
         logger.info(
-            "futures vision-preview:done session=%s visible=%s",
+            "futures vision-preview:done session=%s internal_visible=%s exposed=%s statuses=%s",
             session.session_id,
+            internal_visible,
             len(futures.selected_futures),
+            ",".join(item.review.status for item in futures.selected_futures),
         )
     else:
         logger.info("futures verified:start session=%s", session.session_id)
         futures = await discover_future_forms(
-            state=session.project_state,
+            state=working_state,
             preferences=effective_preferences,
             user_intent=user_intent,
             max_revision_rounds=max_revision_rounds,
@@ -56,5 +102,11 @@ async def discover_session_futures(
         )
 
     return store.save(
-        session.model_copy(update={"stage": "futures_ready", "futures": futures})
+        session.model_copy(
+            update={
+                "stage": "futures_ready",
+                "futures": futures,
+                "project_state": working_state,
+            }
+        )
     )
