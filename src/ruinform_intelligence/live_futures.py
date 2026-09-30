@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 
+from .concept_preview import generate_concept_preview
 from .evidence_gate import can_advance_to_ideation
-from .fast_concept import discover_concept_futures_fast
 from .future_models import FuturePreferences
 from .future_pipeline import discover_future_forms
 from .run_store import SqliteRunStore, TransformationSession
@@ -26,18 +26,18 @@ async def discover_session_futures(
         raise ValueError("Project still needs more evidence before future discovery")
 
     effective_preferences = preferences.model_copy(
-        update={"concept_mode": bool(concept_ready and not verified_ready)}
+        update={"concept_mode": bool(concept_ready)}
     )
 
-    if effective_preferences.concept_mode:
-        logger.info("futures concept-fast:start session=%s", session.session_id)
-        futures = await discover_concept_futures_fast(
+    if concept_ready:
+        logger.info("futures vision-preview:start session=%s", session.session_id)
+        futures = await generate_concept_preview(
             state=session.project_state,
-            preferences=effective_preferences,
+            mode="hybrid",
             user_intent=user_intent,
         )
         logger.info(
-            "futures concept-fast:done session=%s visible=%s",
+            "futures vision-preview:done session=%s visible=%s",
             session.session_id,
             len(futures.selected_futures),
         )
