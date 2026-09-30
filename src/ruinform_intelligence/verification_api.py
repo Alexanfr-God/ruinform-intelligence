@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
@@ -13,7 +14,7 @@ _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 _MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 
 
-async def _upload_to_data_url(upload: UploadFile, *, index: int) -> str:
+async def _upload_to_data_url(upload: UploadFile, *, index: int) -> tuple[str, str]:
     media_type = upload.content_type or ""
     if media_type not in _ALLOWED_IMAGE_TYPES:
         raise ValueError(f"Unsupported verification image type for image {index}: {media_type or 'unknown'}")
@@ -22,7 +23,18 @@ async def _upload_to_data_url(upload: UploadFile, *, index: int) -> str:
         raise ValueError(f"Verification image {index} is empty")
     if len(raw) > _MAX_UPLOAD_BYTES:
         raise ValueError(f"Verification image {index} exceeds 8 MB")
-    return f"data:{media_type};base64,{base64.b64encode(raw).decode('ascii')}"
+    digest = hashlib.sha256(raw).hexdigest()
+    return f"data:{media_type};base64,{base64.b64encode(raw).decode('ascii')}", digest
+
+
+def _reference_digest(reference_image_url: str) -> str | None:
+    if not reference_image_url.startswith("data:image/") or ";base64," not in reference_image_url:
+        return None
+    try:
+        raw = base64.b64decode(reference_image_url.split(",", 1)[1], validate=True)
+    except (ValueError, TypeError):
+        return None
+    return hashlib.sha256(raw).hexdigest()
 
 
 @router.post("/{session_id}/verify-upload", response_model=VerificationOutput)
@@ -51,10 +63,23 @@ async def verify_upload(
         )
 
     try:
-        build_image_urls = [
+        encoded = [
             await _upload_to_data_url(image, index=index)
             for index, image in enumerate(images, start=1)
         ]
+        build_image_urls = [item[0] for item in encoded]
+        build_digests = [item[1] for item in encoded]
+        if len(set(build_digests)) != len(build_digests):
+            raise HTTPException(
+                status_code=400,
+                detail="Duplicate verification photos detected. Add different camera views of the physical build.",
+            )
+        reference_digest = _reference_digest(reference_image_url)
+        if reference_digest and reference_digest in build_digests:
+            raise HTTPException(
+                status_code=400,
+                detail="The generated reference cannot be submitted as physical-build evidence. Photograph the real object.",
+            )
         return await verify_physical_build(
             reference_image_url=reference_image_url,
             build_image_urls=build_image_urls,
@@ -65,6 +90,8 @@ async def verify_upload(
                 else None
             ),
         )
+    except HTTPException:
+        raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except VerificationError as exc:
