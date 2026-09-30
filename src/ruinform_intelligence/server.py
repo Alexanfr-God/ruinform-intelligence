@@ -10,6 +10,7 @@ from .future_api import router as future_forms_router
 from .idea_store import capture_session_ideas, mark_session_candidate_rendered
 from .lab import router as lab_router
 from .lab_postproduction import router as lab_postproduction_router
+from .library_api import router as library_router
 from .live_api import router as live_transformations_router
 from .live_mutation_api import router as live_mutation_router
 from .mvp_entry import router as mvp_entry_router
@@ -200,6 +201,7 @@ app.include_router(future_forms_router)
 app.include_router(render_router)
 app.include_router(live_transformations_router)
 app.include_router(live_mutation_router)
+app.include_router(library_router)
 # Static Studio entry routes must be registered before the dynamic
 # /studio/{session_id} routes, otherwise FastAPI treats names as session IDs.
 app.include_router(mvp_entry_router)
