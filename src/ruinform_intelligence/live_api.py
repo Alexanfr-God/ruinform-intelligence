@@ -73,11 +73,13 @@ class DiscoverRequest(BaseModel):
     user_intent: str | None = Field(default=None, max_length=4000)
     preferences: FuturePreferences = Field(default_factory=FuturePreferences)
     max_revision_rounds: int = Field(default=2, ge=0, le=5)
+    mode: Literal["hybrid", "art", "buildable", "functional"] = "hybrid"
+    difficulty_mode: Literal["easy", "medium", "wild"] | None = None
 
 
 class RenderRequestBody(BaseModel):
     aspect_ratio: str = Field(default="4:5", max_length=16)
-    max_attempts: int = Field(default=3, ge=1, le=5)
+    max_attempts: int = Field(default=2, ge=1, le=2)
     user_prompt: str | None = Field(default=None, max_length=1200)
     presentation_mode: Literal["standard", "post_apocalyptic"] = "post_apocalyptic"
 
@@ -85,13 +87,20 @@ class RenderRequestBody(BaseModel):
 async def _discover_futures_job(session_id: str, payload: DiscoverRequest) -> None:
     """Run the expensive vision/design pass outside the request-response timeout window."""
     try:
-        logger.info("futures async:start session=%s", session_id)
+        logger.info(
+            "futures async:start session=%s mode=%s difficulty=%s",
+            session_id,
+            payload.mode,
+            payload.difficulty_mode or "project-default",
+        )
         await discover_session_futures(
             session=get_session(session_id),
             preferences=payload.preferences,
             user_intent=payload.user_intent,
             max_revision_rounds=payload.max_revision_rounds,
             store=store(),
+            mode=payload.mode,
+            difficulty_mode=payload.difficulty_mode,
         )
         logger.info("futures async:done session=%s", session_id)
     except Exception:  # background failures must become observable session state
@@ -217,6 +226,8 @@ async def discover(session_id: str, payload: DiscoverRequest) -> TransformationS
             user_intent=payload.user_intent,
             max_revision_rounds=payload.max_revision_rounds,
             store=store(),
+            mode=payload.mode,
+            difficulty_mode=payload.difficulty_mode,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

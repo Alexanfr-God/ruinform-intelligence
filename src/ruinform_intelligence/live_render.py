@@ -5,15 +5,29 @@ from typing import Literal
 
 from .evidence_media import externalize_state_for_render
 from .render_director import VisualDirectorError, fallback_visual_direction, generate_visual_direction, select_render_mode
-from .render_gateway import render_future
-from .render_models import RenderResult
+from .render_gateway import RenderGatewayError, render_future
+from .render_models import RenderAttempt, RenderRequest, RenderResult
 from .render_prompt import compile_preview_render_request
-from .render_provider import RenderProvider
+from .render_provider import RenderProvider, RenderProviderError
+from .render_review import enforce_render_gate
+from .render_review_agent import RenderReviewAgentError, evaluate_render
 from .run_store import SqliteRunStore, TransformationSession
 from .visual_brief import generate_visual_brief
 
 
 logger = logging.getLogger("ruinform.live_render")
+_CONCEPT_RENDER_ATTEMPTS = 2
+
+
+def _repair_preview_request(request: RenderRequest, instructions: list[str]) -> RenderRequest:
+    if not instructions:
+        instructions = [
+            "Regenerate more faithfully to the selected future and the supplied source photographs."
+        ]
+    directive = "\n\nCRITIC-GUIDED REGENERATION DIRECTIVES:\n" + "\n".join(
+        f"- {item}" for item in instructions
+    )
+    return request.model_copy(update={"prompt": request.prompt + directive})
 
 
 async def render_session_candidate(
@@ -23,7 +37,7 @@ async def render_session_candidate(
     provider: RenderProvider,
     store: SqliteRunStore,
     aspect_ratio: str = "4:5",
-    max_attempts: int = 3,
+    max_attempts: int = 2,
     user_prompt: str | None = None,
     presentation_mode: Literal["standard", "post_apocalyptic"] = "post_apocalyptic",
 ) -> TransformationSession:
@@ -42,6 +56,8 @@ async def render_session_candidate(
     )
     if future is None:
         raise ValueError(f"Candidate {candidate_id} is not an approved visible future")
+    if future.review.status == "reject":
+        raise ValueError("Rejected future cannot be rendered")
 
     concept_mode = session.reasoning_mode == "concept" and session.concept_mode_acknowledged
 
@@ -112,38 +128,87 @@ async def render_session_candidate(
                 render_mode=render_mode,
             )
 
-        # Visual-first path stays single-pass at the image provider. The added Visual Director
-        # sees the real source images plus the request-scoped user note/presentation choice.
         request = compile_preview_render_request(
             state=render_state,
             future=future,
             direction=direction,
             aspect_ratio=aspect_ratio,
         )
-        logger.info(
-            "render preview:start session=%s candidate=%s refs=%s mode=%s",
-            session.session_id,
-            candidate_id,
-            len(request.references),
-            direction.render_mode,
-        )
-        render = await provider.render(request)
-        logger.info(
-            "render preview:done session=%s candidate=%s provider=%s job=%s",
-            session.session_id,
-            candidate_id,
-            render.provider,
-            render.provider_job_id,
-        )
+        attempt_limit = min(max_attempts, _CONCEPT_RENDER_ATTEMPTS)
+        attempts: list[RenderAttempt] = []
+        last_image_url: str | None = None
+
+        for attempt_index in range(1, attempt_limit + 1):
+            logger.info(
+                "render preview:start session=%s candidate=%s attempt=%s/%s refs=%s mode=%s",
+                session.session_id,
+                candidate_id,
+                attempt_index,
+                attempt_limit,
+                len(request.references),
+                direction.render_mode,
+            )
+            try:
+                render = await provider.render(request)
+                last_image_url = render.image_url
+                raw_review = await evaluate_render(
+                    future=future,
+                    request=request,
+                    render=render,
+                )
+            except (RenderProviderError, RenderReviewAgentError, ValueError) as exc:
+                raise RenderGatewayError(str(exc)) from exc
+
+            review = enforce_render_gate(raw_review)
+            attempts.append(
+                RenderAttempt(
+                    attempt_index=attempt_index,
+                    request=request,
+                    render=render,
+                    critique=review,
+                )
+            )
+            logger.info(
+                "render critic session=%s candidate=%s attempt=%s status=%s brief=%s source=%s provenance=%s geometry=%s invention=%s provider=%s job=%s",
+                session.session_id,
+                candidate_id,
+                attempt_index,
+                review.status,
+                review.brief_fidelity_score,
+                review.source_material_fidelity_score,
+                review.provenance_visibility_score,
+                review.geometry_consistency_score,
+                review.invention_risk_score,
+                render.provider,
+                render.provider_job_id,
+            )
+
+            if review.status == "pass":
+                result = RenderResult(
+                    candidate_id=future.candidate.candidate_id,
+                    status="pass",
+                    accepted_image_url=render.image_url,
+                    attempts=attempts,
+                    failure_reason=None,
+                )
+                return store.save(
+                    session.model_copy(update={"stage": "completed", "render_result": result})
+                )
+
+            if review.status == "reject" or attempt_index >= attempt_limit:
+                break
+
+            request = _repair_preview_request(request, review.regeneration_instructions)
+
         result = RenderResult(
             candidate_id=future.candidate.candidate_id,
-            status="pass",
-            accepted_image_url=render.image_url,
-            attempts=[],
-            failure_reason=None,
+            status="failed",
+            accepted_image_url=last_image_url,
+            attempts=attempts,
+            failure_reason="No concept render passed the visual trust gate within two attempts.",
         )
         return store.save(
-            session.model_copy(update={"stage": "completed", "render_result": result})
+            session.model_copy(update={"stage": "failed", "render_result": result})
         )
 
     if future.visual_brief is None:

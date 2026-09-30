@@ -28,18 +28,28 @@ async def evaluate_render(
     client: AsyncOpenAI | None = None,
     model: str | None = None,
 ) -> RenderCritique:
-    if future.visual_brief is None or future.review.status != "pass":
-        raise RenderReviewAgentError("Only approved futures with a VisualBrief may be reviewed")
+    if future.review.status == "reject":
+        raise RenderReviewAgentError("Rejected futures may not be render-reviewed")
     if request.candidate_id != future.candidate.candidate_id:
         raise RenderReviewAgentError("Candidate mismatch")
 
+    stage_note = (
+        "A renderer-safe VisualBrief is attached to the future."
+        if future.visual_brief is not None
+        else (
+            "This is a concept-stage render without a separate VisualBrief. Treat the selected future, "
+            "the compiled render request, and the supplied source photographs together as the binding visual contract."
+        )
+    )
     content: list[dict] = [
         {
             "type": "input_text",
             "text": (
-                "Evaluate the generated concept image against this approved future and render request. "
-                "Return only the structured review.\n\n"
-                f"Approved future: {future.model_dump_json()}\n\n"
+                "Evaluate the generated concept image against this selected future and render request. "
+                "Judge whether the visible result actually preserves the source matter and the intended transformation. "
+                "Do not reward atmosphere when the object itself misses the concept. Return only the structured review.\n\n"
+                f"Review stage: {stage_note}\n\n"
+                f"Selected future: {future.model_dump_json()}\n\n"
                 f"Render request: {request.model_dump_json()}"
             ),
         },
