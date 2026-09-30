@@ -91,7 +91,7 @@ async def _discover_futures_job(session_id: str, payload: DiscoverRequest) -> No
             store=store(),
         )
         logger.info("futures async:done session=%s", session_id)
-    except Exception as exc:  # background failures must become observable session state
+    except Exception:  # background failures must become observable session state
         logger.exception("futures async:failed session=%s", session_id)
         try:
             current = get_session(session_id)
@@ -221,8 +221,13 @@ async def discover(session_id: str, payload: DiscoverRequest) -> TransformationS
 
 @router.post("/{session_id}/render/{candidate_id}", response_model=TransformationSession)
 async def render(session_id: str, candidate_id: str, payload: RenderRequestBody) -> TransformationSession:
+    cleanup_client = None
     try:
-        provider, client = create_higgsfield_provider()
+        active_provider = create_higgsfield_provider()
+        if isinstance(active_provider, tuple):
+            provider, cleanup_client = active_provider
+        else:
+            provider = active_provider
         try:
             return await render_session_candidate(
                 session=get_session(session_id),
@@ -233,6 +238,7 @@ async def render(session_id: str, candidate_id: str, payload: RenderRequestBody)
                 max_attempts=payload.max_attempts,
             )
         finally:
-            await client.aclose()
+            if cleanup_client is not None:
+                await cleanup_client.aclose()
     except (RenderProviderError, RenderGatewayError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
