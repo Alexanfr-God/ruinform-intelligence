@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import base64
+import logging
 import os
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -20,7 +22,9 @@ from .render_provider import RenderProviderError
 from .run_store import SessionNotFound, SqliteRunStore, TransformationSession
 
 router = APIRouter(prefix="/v1/live-transformations", tags=["live-transformations"])
+logger = logging.getLogger("ruinform.live_api")
 _store: SqliteRunStore | None = None
+_future_tasks: dict[str, asyncio.Task[None]] = {}
 _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 _MAX_UPLOAD_FILES = 8
 _MAX_UPLOAD_BYTES = 8 * 1024 * 1024
@@ -73,6 +77,29 @@ class DiscoverRequest(BaseModel):
 class RenderRequestBody(BaseModel):
     aspect_ratio: str = Field(default="4:5", max_length=16)
     max_attempts: int = Field(default=3, ge=1, le=5)
+
+
+async def _discover_futures_job(session_id: str, payload: DiscoverRequest) -> None:
+    """Run the expensive vision/design pass outside the request-response timeout window."""
+    try:
+        logger.info("futures async:start session=%s", session_id)
+        await discover_session_futures(
+            session=get_session(session_id),
+            preferences=payload.preferences,
+            user_intent=payload.user_intent,
+            max_revision_rounds=payload.max_revision_rounds,
+            store=store(),
+        )
+        logger.info("futures async:done session=%s", session_id)
+    except Exception as exc:  # background failures must become observable session state
+        logger.exception("futures async:failed session=%s", session_id)
+        try:
+            current = get_session(session_id)
+            store().save(current.model_copy(update={"stage": "failed"}))
+        except Exception:
+            logger.exception("futures async:could not persist failure session=%s", session_id)
+    finally:
+        _future_tasks.pop(session_id, None)
 
 
 @router.post("/start", response_model=TransformationSession)
@@ -153,8 +180,33 @@ async def add_evidence(session_id: str, payload: ContinueEvidenceRequest) -> Tra
     )
 
 
+@router.post("/{session_id}/futures/start")
+async def discover_start(session_id: str, payload: DiscoverRequest) -> dict[str, object]:
+    """Start future discovery and return immediately.
+
+    Cloud/CDN request timeouts are shorter than a high-reasoning vision pass. The browser
+    bridge should call this endpoint once, then poll GET /{session_id}. Duplicate starts are
+    idempotent while a task is active and after futures are already available.
+    """
+    session = get_session(session_id)
+    if session.futures is not None and session.stage in {"futures_ready", "rendering", "completed", "build_plan_ready"}:
+        return {"ok": True, "pending": False, "session_id": session_id, "stage": session.stage}
+
+    active = _future_tasks.get(session_id)
+    if active is not None and not active.done():
+        return {"ok": True, "pending": True, "session_id": session_id, "stage": "futures_generating"}
+
+    if session.stage == "failed":
+        session = store().save(session.model_copy(update={"stage": "ready_for_futures"}))
+
+    task = asyncio.create_task(_discover_futures_job(session_id, payload))
+    _future_tasks[session_id] = task
+    return {"ok": True, "pending": True, "session_id": session_id, "stage": "futures_generating"}
+
+
 @router.post("/{session_id}/futures", response_model=TransformationSession)
 async def discover(session_id: str, payload: DiscoverRequest) -> TransformationSession:
+    """Compatibility synchronous route for non-Workshop callers."""
     try:
         return await discover_session_futures(
             session=get_session(session_id),
