@@ -195,17 +195,24 @@ async def render_session_candidate(
                     session.model_copy(update={"stage": "completed", "render_result": result})
                 )
 
-            if review.status == "reject" or attempt_index >= attempt_limit:
+            if attempt_index >= attempt_limit:
                 break
 
-            request = _repair_preview_request(request, review.regeneration_instructions)
+            repair_instructions = list(review.regeneration_instructions)
+            if review.status == "reject":
+                repair_instructions = [
+                    "The previous image was fundamentally incompatible with the selected future. Start the visual composition over rather than polishing or preserving that failed topology.",
+                    "Re-anchor the next image to the supplied source photographs, the selected transformation, its signature gesture, and its required negative space. Do not keep invented geometry merely because it looked attractive.",
+                    *repair_instructions,
+                ]
+            request = _repair_preview_request(request, repair_instructions)
 
         result = RenderResult(
             candidate_id=future.candidate.candidate_id,
             status="failed",
             accepted_image_url=last_image_url,
             attempts=attempts,
-            failure_reason="No concept render passed the visual trust gate within two attempts.",
+            failure_reason=f"No concept render passed the visual trust gate within {attempt_limit} attempts.",
         )
         return store.save(
             session.model_copy(update={"stage": "failed", "render_result": result})
