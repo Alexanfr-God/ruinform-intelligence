@@ -13,6 +13,7 @@ from .evidence_contract import EvidenceContractReport, validate_state_contract
 from .evidence_gate import can_advance_to_ideation
 from .material_eye import MaterialEyeError, analyze_materials
 from .models import ProjectConstraints, ProjectState
+from .verification_api import router as verification_router
 
 
 app = FastAPI(
@@ -155,3 +156,6 @@ async def material_eye_analyze(payload: MaterialEyeRequest) -> MaterialEyeRespon
         can_advance_to_ideation=can_advance_to_ideation(state),
         evidence_contract=validate_state_contract(state),
     )
+
+
+app.include_router(verification_router)
