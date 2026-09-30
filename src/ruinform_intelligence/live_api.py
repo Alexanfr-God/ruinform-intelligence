@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import base64
 import os
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field, HttpUrl
 
 from .evidence_loop import MeasurementInput
@@ -11,7 +12,8 @@ from .live_evidence import continue_session_evidence
 from .live_futures import discover_session_futures
 from .live_render import render_session_candidate
 from .live_transform import start_session
-from .models import ProjectConstraints
+from .material_eye import MaterialEyeError, analyze_evidence
+from .models import EvidenceItem, ProjectConstraints
 from .provider_factory import create_higgsfield_provider
 from .render_gateway import RenderGatewayError
 from .render_provider import RenderProviderError
@@ -19,6 +21,9 @@ from .run_store import SessionNotFound, SqliteRunStore, TransformationSession
 
 router = APIRouter(prefix="/v1/live-transformations", tags=["live-transformations"])
 _store: SqliteRunStore | None = None
+_ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+_MAX_UPLOAD_FILES = 8
+_MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 
 
 def store() -> SqliteRunStore:
@@ -33,6 +38,18 @@ def get_session(session_id: str) -> TransformationSession:
         return store().get(session_id)
     except SessionNotFound as exc:
         raise HTTPException(status_code=404, detail="Transformation session not found") from exc
+
+
+async def _upload_to_data_url(upload: UploadFile, *, index: int) -> str:
+    media_type = upload.content_type or ""
+    if media_type not in _ALLOWED_IMAGE_TYPES:
+        raise ValueError(f"Unsupported image type for image {index}: {media_type or 'unknown'}")
+    raw = await upload.read(_MAX_UPLOAD_BYTES + 1)
+    if not raw:
+        raise ValueError(f"Image {index} is empty")
+    if len(raw) > _MAX_UPLOAD_BYTES:
+        raise ValueError(f"Image {index} exceeds 8 MB")
+    return f"data:{media_type};base64,{base64.b64encode(raw).decode('ascii')}"
 
 
 class StartRequest(BaseModel):
@@ -67,6 +84,56 @@ async def start(payload: StartRequest) -> TransformationSession:
         user_context=payload.user_context,
         constraints=payload.constraints,
         store=store(),
+    )
+
+
+@router.post("/start-upload", response_model=TransformationSession)
+async def start_upload(
+    images: list[UploadFile] = File(...),
+    user_context: str = Form(default=""),
+) -> TransformationSession:
+    """Start the visual-first Workshop flow from direct image uploads.
+
+    This route exists for server-to-server website bridges. It avoids requiring the
+    intelligence service or OpenAI to fetch private Higgsfield-hosted media URLs.
+    Evidence is stored as data URLs in the durable transformation session; the existing
+    evidence-media layer externalizes those images as signed public URLs only when a
+    renderer needs them.
+    """
+    if not os.getenv("OPENAI_API_KEY"):
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY is not configured")
+    if not 1 <= len(images) <= _MAX_UPLOAD_FILES:
+        raise HTTPException(status_code=400, detail="Upload between 1 and 8 images")
+
+    evidence: list[EvidenceItem] = []
+    try:
+        for index, image in enumerate(images, start=1):
+            evidence.append(
+                EvidenceItem(
+                    evidence_id=f"image_{index:03d}",
+                    source_type="image",
+                    uri=await _upload_to_data_url(image, index=index),
+                )
+            )
+        state, _summary = await analyze_evidence(
+            evidence=evidence,
+            user_context=user_context.strip() or None,
+            constraints=ProjectConstraints(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except MaterialEyeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return store().save(
+        TransformationSession(
+            project_id=state.project_id,
+            stage="ready_for_futures",
+            project_state=state,
+            reasoning_mode="concept",
+            concept_mode_acknowledged=True,
+            concept_notice_version="website-workshop-2026-09",
+        )
     )
 
 
