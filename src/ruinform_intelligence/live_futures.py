@@ -16,13 +16,18 @@ DifficultyMode = Literal["easy", "medium", "wild"]
 _VISIBLE_FUTURE_COUNT = 2
 
 
-def _visible_preview(futures):
-    """Think broadly, expose narrowly.
+def _internal_candidate_count(mode: ConceptMode) -> int:
+    """Spend search budget where it protects quality.
 
-    The Design Brain still invents/reviews four futures internally. The live Workshop
-    only receives the two strongest non-rejected directions so the UI stays fast and
-    decisive without throwing away the larger internal search space.
+    MIX/HYBRID remains broad enough to benefit from one extra internal direction,
+    while focused modes can go straight to two candidates. In every case the same
+    pre-render critic and one-pass self-healing remain enabled.
     """
+    return 3 if mode == "hybrid" else 2
+
+
+def _visible_preview(futures):
+    """Expose only the two strongest directions to the Workshop."""
     ranked = list(futures.selected_futures)
     usable = [item for item in ranked if item.review.status != "reject"]
     chosen = usable[:_VISIBLE_FUTURE_COUNT]
@@ -67,16 +72,20 @@ async def discover_session_futures(
         )
 
     if concept_ready:
+        candidate_count = _internal_candidate_count(mode)
         logger.info(
-            "futures vision-preview:start session=%s mode=%s difficulty=%s",
+            "futures vision-preview:start session=%s mode=%s difficulty=%s internal_budget=%s exposed=%s",
             session.session_id,
             mode,
             working_state.creative_intent.difficulty_mode,
+            candidate_count,
+            _VISIBLE_FUTURE_COUNT,
         )
         futures = await generate_concept_preview(
             state=working_state,
             mode=mode,
             user_intent=user_intent,
+            candidate_count=candidate_count,
         )
         internal_visible = len(futures.selected_futures)
         futures = _visible_preview(futures)
