@@ -59,13 +59,14 @@ async def generate_concept_preview(
     state: ProjectState,
     mode: str = "hybrid",
     user_intent: str | None = None,
+    candidate_count: int = 4,
     client: AsyncOpenAI | None = None,
     model: str | None = None,
 ) -> FutureFormsResult:
-    """Generate four futures, then repair flagged slots once before showing them.
+    """Generate a bounded candidate set, then repair flagged slots once.
 
-    This deliberately wraps the stable preview pipeline instead of re-introducing an
-    open-ended critic loop. PASS concepts are immutable. Every REVISE/REJECT slot may
+    The live Workshop can lower the internal candidate budget while keeping the
+    same quality gate. PASS concepts are immutable. Every REVISE/REJECT slot may
     be touched once, the repaired subset is reviewed once, and the process stops.
     """
 
@@ -74,6 +75,7 @@ async def generate_concept_preview(
         state=state,
         mode=mode,
         user_intent=user_intent,
+        candidate_count=candidate_count,
         client=client,
         model=model,
     )
@@ -152,7 +154,6 @@ async def generate_concept_preview(
         }
         return base.model_copy(update={"retrieval_trace": trace})
 
-    original_by_id = {item.candidate.candidate_id: item for item in base.selected_futures}
     final_items: list[ReviewedFuture] = []
     healing_rows: list[dict[str, object]] = []
 
@@ -215,6 +216,7 @@ async def generate_concept_preview(
         "enabled": True,
         "attempted": True,
         "pass_limit": 1,
+        "candidate_budget": candidate_count,
         "targets": healing_rows,
         "remaining_rejects": remaining_rejects,
         "policy": "PASS locked; REVISE repaired once; REJECT replaced once; no recursive loop",
