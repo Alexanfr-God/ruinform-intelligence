@@ -26,6 +26,7 @@ router = APIRouter(prefix="/v1/live-transformations", tags=["live-transformation
 logger = logging.getLogger("ruinform.live_api")
 _store: SqliteRunStore | None = None
 _future_tasks: dict[str, asyncio.Task[None]] = {}
+_render_tasks: dict[str, asyncio.Task[None]] = {}
 _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 _MAX_UPLOAD_FILES = 8
 _MAX_UPLOAD_BYTES = 8 * 1024 * 1024
@@ -112,6 +113,53 @@ async def _discover_futures_job(session_id: str, payload: DiscoverRequest) -> No
             logger.exception("futures async:could not persist failure session=%s", session_id)
     finally:
         _future_tasks.pop(session_id, None)
+
+
+async def _render_candidate_job(
+    session_id: str,
+    candidate_id: str,
+    payload: RenderRequestBody,
+) -> None:
+    """Render outside the browser request so CDN/Worker timeouts cannot kill the job."""
+    cleanup_client = None
+    try:
+        logger.info(
+            "render async:start session=%s candidate=%s attempts=%s presentation=%s",
+            session_id,
+            candidate_id,
+            payload.max_attempts,
+            payload.presentation_mode,
+        )
+        active_provider = create_higgsfield_provider()
+        if isinstance(active_provider, tuple):
+            provider, cleanup_client = active_provider
+        else:
+            provider = active_provider
+        await render_session_candidate(
+            session=get_session(session_id),
+            candidate_id=candidate_id,
+            provider=provider,
+            store=store(),
+            aspect_ratio=payload.aspect_ratio,
+            max_attempts=payload.max_attempts,
+            user_prompt=payload.user_prompt,
+            presentation_mode=payload.presentation_mode,
+        )
+        logger.info("render async:done session=%s candidate=%s", session_id, candidate_id)
+    except Exception:
+        logger.exception("render async:failed session=%s candidate=%s", session_id, candidate_id)
+        try:
+            current = get_session(session_id)
+            store().save(current.model_copy(update={"stage": "failed"}))
+        except Exception:
+            logger.exception("render async:could not persist failure session=%s", session_id)
+    finally:
+        if cleanup_client is not None:
+            try:
+                await cleanup_client.aclose()
+            except Exception:
+                logger.exception("render async:provider cleanup failed session=%s", session_id)
+        _render_tasks.pop(session_id, None)
 
 
 @router.post("/start", response_model=TransformationSession)
@@ -233,8 +281,51 @@ async def discover(session_id: str, payload: DiscoverRequest) -> TransformationS
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+@router.post("/{session_id}/render/{candidate_id}/start")
+async def render_start(
+    session_id: str,
+    candidate_id: str,
+    payload: RenderRequestBody,
+) -> dict[str, object]:
+    """Start a potentially slow critic-gated render and return immediately."""
+    session = get_session(session_id)
+    if session.futures is None:
+        raise HTTPException(status_code=409, detail="Generate futures before rendering")
+    if not any(item.candidate.candidate_id == candidate_id for item in session.futures.selected_futures):
+        raise HTTPException(status_code=404, detail="Selected candidate is not available in this session")
+
+    active = _render_tasks.get(session_id)
+    if active is not None and not active.done():
+        if session.selected_candidate_id and session.selected_candidate_id != candidate_id:
+            raise HTTPException(status_code=409, detail="Another render is already running for this session")
+        return {"ok": True, "pending": True, "session_id": session_id, "candidate_id": candidate_id, "stage": "rendering"}
+
+    if (
+        session.stage == "completed"
+        and session.render_result is not None
+        and session.render_result.status == "pass"
+        and session.render_result.candidate_id == candidate_id
+        and session.render_result.accepted_image_url
+    ):
+        return {"ok": True, "pending": False, "session_id": session_id, "candidate_id": candidate_id, "stage": "completed"}
+
+    session = store().save(
+        session.model_copy(
+            update={
+                "stage": "rendering",
+                "selected_candidate_id": candidate_id,
+                "render_result": None,
+            }
+        )
+    )
+    task = asyncio.create_task(_render_candidate_job(session_id, candidate_id, payload))
+    _render_tasks[session_id] = task
+    return {"ok": True, "pending": True, "session_id": session_id, "candidate_id": candidate_id, "stage": session.stage}
+
+
 @router.post("/{session_id}/render/{candidate_id}", response_model=TransformationSession)
 async def render(session_id: str, candidate_id: str, payload: RenderRequestBody) -> TransformationSession:
+    """Compatibility synchronous route for Studio/non-Workshop callers."""
     cleanup_client = None
     try:
         active_provider = create_higgsfield_provider()
