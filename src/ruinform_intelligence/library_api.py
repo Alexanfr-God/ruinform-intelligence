@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import base64
 from uuid import uuid4
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from .library_store import (
@@ -22,6 +25,7 @@ router = APIRouter(prefix="/v1/library", tags=["generation-library"])
 class CaptureRequest(BaseModel):
     owner_id: str = Field(min_length=8, max_length=160)
     session_id: str = Field(min_length=8, max_length=160)
+    parent_generation_id: str | None = Field(default=None, min_length=64, max_length=64)
 
 
 class VisibilityRequest(BaseModel):
@@ -40,12 +44,15 @@ def _number(value, default=0) -> int:
         return default
 
 
-def _entry_view(entry: LibraryEntry, *, reveal_owner: bool = False) -> dict[str, object]:
+def _review_for_entry(entry: LibraryEntry):
     try:
-        review = create_review_store().get(entry.review_id)
+        return create_review_store().get(entry.review_id)
     except ReviewItemNotFound as exc:
         raise HTTPException(status_code=404, detail="Generation snapshot is unavailable") from exc
 
+
+def _entry_view(entry: LibraryEntry, *, reveal_owner: bool = False) -> dict[str, object]:
+    review = _review_for_entry(entry)
     concept = review.concept_snapshot if isinstance(review.concept_snapshot, dict) else {}
     review_snapshot = review.review_snapshot if isinstance(review.review_snapshot, dict) else {}
     metrics = concept.get("metrics") if isinstance(concept.get("metrics"), dict) else {}
@@ -70,7 +77,7 @@ def _entry_view(entry: LibraryEntry, *, reveal_owner: bool = False) -> dict[str,
     payload: dict[str, object] = {
         "id": entry.generation_id,
         "title": review.candidate_name,
-        "imageUrl": review.render_url,
+        "imageAvailable": bool(review.render_url),
         "score": score,
         "category": category,
         "oneLine": one_line,
@@ -87,6 +94,16 @@ def _entry_view(entry: LibraryEntry, *, reveal_owner: bool = False) -> dict[str,
     return payload
 
 
+def _authorized_entry(generation_id: str, owner_id: str | None) -> LibraryEntry:
+    try:
+        entry = create_library_store().get(generation_id)
+    except LibraryEntryNotFound as exc:
+        raise HTTPException(status_code=404, detail="Generation not found") from exc
+    if not entry.is_public and entry.owner_id != owner_id:
+        raise HTTPException(status_code=403, detail="This generation is private")
+    return entry
+
+
 @router.post("/capture")
 def capture_generation(payload: CaptureRequest) -> dict[str, object]:
     try:
@@ -98,6 +115,15 @@ def capture_generation(payload: CaptureRequest) -> dict[str, object]:
     if review is None:
         raise HTTPException(status_code=409, detail="Only an accepted render can be saved to the library")
 
+    parent_id = payload.parent_generation_id
+    if parent_id:
+        try:
+            parent = create_library_store().get(parent_id)
+        except LibraryEntryNotFound as exc:
+            raise HTTPException(status_code=400, detail="Parent generation does not exist") from exc
+        if not parent.is_public and parent.owner_id != payload.owner_id:
+            raise HTTPException(status_code=403, detail="Parent generation is private")
+
     entry = LibraryEntry(
         generation_id=generation_id_for(owner_id=payload.owner_id, review_id=review.review_id),
         owner_id=payload.owner_id,
@@ -105,19 +131,20 @@ def capture_generation(payload: CaptureRequest) -> dict[str, object]:
         session_id=session.session_id,
         candidate_id=review.candidate_id,
         is_public=False,
+        parent_generation_id=parent_id,
     )
     saved = create_library_store().save(entry)
     return {"ok": True, "generation": _entry_view(saved)}
 
 
 @router.get("/mine")
-def list_mine(owner_id: str = Query(min_length=8, max_length=160), limit: int = Query(default=48, ge=1, le=100)) -> dict[str, object]:
+def list_mine(owner_id: str = Query(min_length=8, max_length=160), limit: int = Query(default=24, ge=1, le=60)) -> dict[str, object]:
     rows = create_library_store().list_mine(owner_id, limit=limit)
     return {"ok": True, "items": [_entry_view(row) for row in rows]}
 
 
 @router.get("/explore")
-def list_explore(limit: int = Query(default=48, ge=1, le=100)) -> dict[str, object]:
+def list_explore(limit: int = Query(default=24, ge=1, le=60)) -> dict[str, object]:
     rows = create_library_store().list_public(limit=limit)
     return {"ok": True, "items": [_entry_view(row) for row in rows]}
 
@@ -139,14 +166,7 @@ def set_visibility(generation_id: str, payload: VisibilityRequest) -> dict[str, 
 
 @router.post("/{generation_id}/fork")
 def fork_generation(generation_id: str, payload: ForkRequest) -> dict[str, object]:
-    try:
-        entry = create_library_store().get(generation_id)
-    except LibraryEntryNotFound as exc:
-        raise HTTPException(status_code=404, detail="Generation not found") from exc
-
-    if not entry.is_public and entry.owner_id != payload.owner_id:
-        raise HTTPException(status_code=403, detail="This generation is private")
-
+    entry = _authorized_entry(generation_id, payload.owner_id)
     try:
         review = create_review_store().get(entry.review_id)
         source = create_run_store().get(review.session_id)
@@ -185,12 +205,47 @@ def fork_generation(generation_id: str, payload: ForkRequest) -> dict[str, objec
     }
 
 
+@router.get("/{generation_id}/image")
+async def read_generation_image(
+    generation_id: str,
+    owner_id: str | None = Query(default=None, max_length=160),
+) -> Response:
+    entry = _authorized_entry(generation_id, owner_id)
+    review = _review_for_entry(entry)
+    source = review.render_url
+    if not source:
+        raise HTTPException(status_code=404, detail="Generation image is unavailable")
+
+    if source.startswith("data:image/"):
+        try:
+            header, encoded = source.split(",", 1)
+            media_type = header.split(";", 1)[0][5:]
+            raw = base64.b64decode(encoded, validate=True)
+        except (ValueError, base64.binascii.Error) as exc:
+            raise HTTPException(status_code=500, detail="Stored generation image is invalid") from exc
+        return Response(
+            content=raw,
+            media_type=media_type,
+            headers={"cache-control": "public, max-age=86400" if entry.is_public else "private, max-age=3600"},
+        )
+
+    if source.startswith("https://"):
+        try:
+            async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+                upstream = await client.get(source)
+                upstream.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail="Could not load generation image") from exc
+        return Response(
+            content=upstream.content,
+            media_type=upstream.headers.get("content-type", "image/jpeg"),
+            headers={"cache-control": "public, max-age=86400" if entry.is_public else "private, max-age=3600"},
+        )
+
+    raise HTTPException(status_code=500, detail="Unsupported stored generation image")
+
+
 @router.get("/{generation_id}")
 def read_generation(generation_id: str, owner_id: str | None = Query(default=None, max_length=160)) -> dict[str, object]:
-    try:
-        entry = create_library_store().get(generation_id)
-    except LibraryEntryNotFound as exc:
-        raise HTTPException(status_code=404, detail="Generation not found") from exc
-    if not entry.is_public and entry.owner_id != owner_id:
-        raise HTTPException(status_code=403, detail="This generation is private")
+    entry = _authorized_entry(generation_id, owner_id)
     return {"ok": True, "generation": _entry_view(entry)}
