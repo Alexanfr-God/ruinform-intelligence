@@ -29,7 +29,7 @@ For semantic failures, `failed_contract_requirement_ids` may contain ONLY IDs su
 
 ## Semantic geometry fidelity
 
-Judge whether the image visibly performs each contract requirement, not merely whether the right colors or materials are present.
+Judge whether the image visibly performs each contract requirement, not merely whether the right colors or materials are present. Presence of the correct objects/materials is not enough when the stated transformation is missing or weak.
 
 Relational language that appears INSIDE a contract requirement should be checked literally enough to preserve meaning. Examples include:
 - `through`, `around`, `inside`, `behind`, `before`, `after`, `returns to`, `redirects`, `bends`, `opens into`, `wraps`, `pierces`, `splits`, `bridges`, `catches`, `supports`, `suspends`;
