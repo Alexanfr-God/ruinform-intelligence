@@ -47,7 +47,9 @@ class RenderCritique(StrictModel):
     geometry_consistency_score: int = Field(ge=0, le=100)
     invention_risk_score: int = Field(ge=0, le=100)
     violations: list[RenderViolation]
-    failed_contract_requirement_ids: list[str] = Field(default_factory=list)
+    # Required for OpenAI strict JSON-schema output: every property must be in `required`.
+    # Return [] when no immutable Future requirements failed.
+    failed_contract_requirement_ids: list[str]
     regeneration_instructions: list[str]
     summary: str
 
