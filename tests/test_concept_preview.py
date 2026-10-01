@@ -58,25 +58,25 @@ def _review(status: str) -> FeasibilityReview:
     )
 
 
-def test_preview_batch_requires_exactly_four_candidates() -> None:
+def test_preview_batch_accepts_four_candidates() -> None:
     batch = PreviewBatch(candidates=[_preview(f"preview_{index:02d}") for index in range(1, 5)])
     assert len(batch.candidates) == 4
 
 
 def test_preview_prompt_defers_engineering_until_after_selection() -> None:
-    prompt = _instructions("hybrid")
+    prompt = _instructions("hybrid", candidate_count=4)
     assert "PREVIEW stage" in prompt
     assert "not engineering approval" in prompt
     assert "scale-to-fit" in prompt
     assert "exactly four" in prompt
     assert "MEMORY INFLUENCE CAP" in prompt
     assert "SOURCE ECONOMY" in prompt
-    assert "DIVERSITY CONTRACT" in prompt
     assert "at least three genuinely different transformation families" in prompt
+    assert "compare the concepts side by side" in prompt
 
 
 def test_preview_schema_locks_material_ids_to_project_state() -> None:
-    schema = _preview_schema(["real_a", "real_b"])
+    schema = _preview_schema(["real_a", "real_b"], candidate_count=4)
     material_id_schema = schema["$defs"]["MaterialUse"]["properties"]["material_item_id"]
     candidate_id_schema = schema["$defs"]["CandidateForm"]["properties"]["candidate_id"]
     assert material_id_schema["enum"] == ["real_a", "real_b"]
@@ -93,11 +93,11 @@ def test_source_participation_contract_prefers_smallest_coherent_subset() -> Non
         ],
         creative_intent=CreativeIntent(difficulty_mode="medium", background_mode="clean_studio"),
     )
-    contract = _source_participation_contract(state)
+    contract = _source_participation_contract(state, candidate_count=4)
     assert "SMALLEST coherent subset" in contract
     assert "No concept is required to use all source items" in contract
-    assert "intentional omission is valid" in contract
-    assert "do not make the same obvious source the hero in all four futures" in contract
+    assert "Intentional omission is valid" in contract
+    assert "vary which source carries the signature gesture" in contract
 
 
 def test_pre_render_gate_penalizes_revise_and_reject() -> None:
