@@ -44,11 +44,11 @@ def test_source_participation_contract_prefers_source_economy_for_small_sets() -
             MaterialItem(display_name="LED strip"),
         ]
     )
-    text = _source_participation_contract(state)
+    text = _source_participation_contract(state, candidate_count=4)
     assert "SMALLEST coherent subset" in text
     assert "No concept is required to use all source items" in text
-    assert "intentional omission is valid" in text
-    assert "at least two concepts should use fewer than the full set" in text
+    assert "Intentional omission is valid" in text
+    assert "Every used source must carry a necessary" in text
 
 
 def test_visual_director_support_budget_tracks_difficulty() -> None:
