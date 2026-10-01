@@ -41,14 +41,30 @@ async def evaluate_render(
             "the compiled render request, and the supplied source photographs together as the binding visual contract."
         )
     )
+    candidate = future.candidate
+    semantic_contract = (
+        f"NAME: {candidate.name}\n"
+        f"ONE-LINE TRANSFORMATION: {candidate.one_line}\n"
+        f"TRANSFORMATION LOGIC: {candidate.transformation_logic}\n"
+        f"KEY OPERATIONS: {'; '.join(candidate.key_operations) or 'none declared'}\n"
+        f"MATERIAL ROLES: "
+        + "; ".join(
+            f"{use.material_item_id} => {use.role}"
+            + (f" ({use.note})" if use.note else "")
+            for use in candidate.material_uses
+        )
+    )
     content: list[dict] = [
         {
             "type": "input_text",
             "text": (
                 "Evaluate the generated concept image against this selected future and render request. "
-                "Judge whether the visible result actually preserves the source matter and the intended transformation. "
-                "Do not reward atmosphere when the object itself misses the concept. Return only the structured review.\n\n"
+                "The transformation itself is the primary contract: check whether the image visibly performs the Future's stated path, sequence, progression, spatial relationship, and material operation. "
+                "Presence of the correct objects/colors is not enough. Do not reward atmosphere or polish when the semantic geometry is weak. "
+                "If the Future says that something changes gradually, link-by-link, through, around, into, before/after, or returns to another element, verify that relationship directly in the pixels. "
+                "Return only the structured review.\n\n"
                 f"Review stage: {stage_note}\n\n"
+                f"BINDING SEMANTIC TRANSFORMATION CONTRACT:\n{semantic_contract}\n\n"
                 f"Selected future: {future.model_dump_json()}\n\n"
                 f"Render request: {request.model_dump_json()}"
             ),
