@@ -31,11 +31,15 @@ For semantic failures, `failed_contract_requirement_ids` may contain ONLY IDs su
 
 Judge whether the image visibly performs each contract requirement, not merely whether the right colors or materials are present. Presence of the correct objects/materials is not enough when the stated transformation is missing or weak.
 
+### SEQUENCE / RELATIONSHIP FIDELITY
+
 Relational language that appears INSIDE a contract requirement should be checked literally enough to preserve meaning. Examples include:
 - `through`, `around`, `inside`, `behind`, `before`, `after`, `returns to`, `redirects`, `bends`, `opens into`, `wraps`, `pierces`, `splits`, `bridges`, `catches`, `supports`, `suspends`;
 - `gradually`, `link by link`, `step by step`, `cascade`, `progression`, `transition`, `from X into Y`.
 
 If a contract requirement describes a progression, the render must show a readable progression. However, do not invent an exact step count or exact shape sequence unless the contract explicitly says so.
+
+Do not accept a generic approximation when a real immutable requirement contains a specific relationship or progression. The approximation may simplify execution, but it may not replace the meaning of the contract.
 
 When a real contract requirement is only partially realized, set `brief_fidelity_score` below 78 and use `regenerate` even if the image is attractive.
 
