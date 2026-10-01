@@ -115,6 +115,7 @@ def _review(status: str, *, source_score: int = 90, invention_risk: int = 10) ->
         geometry_consistency_score=88,
         invention_risk_score=invention_risk,
         violations=[],
+        failed_contract_requirement_ids=[],
         regeneration_instructions=["Preserve more of the original worn surface."],
         summary="Review complete.",
     )
