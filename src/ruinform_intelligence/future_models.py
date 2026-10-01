@@ -50,6 +50,18 @@ class CandidateForm(StrictModel):
     unresolved_dependencies: list[str]
 
 
+class SemanticRequirement(StrictModel):
+    requirement_id: str
+    kind: Literal["transformation", "operation", "material_role"]
+    text: str
+
+
+class FutureSemanticContract(StrictModel):
+    version: Literal["v1"] = "v1"
+    candidate_id: str
+    requirements: list[SemanticRequirement]
+
+
 class CandidatePool(StrictModel):
     candidates: list[CandidateForm]
 
@@ -111,6 +123,7 @@ class ReviewedFuture(BaseModel):
     rank_score: float = Field(ge=0.0, le=100.0)
     revision_history: list[RevisionRecord] = Field(default_factory=list)
     visual_brief: VisualBrief | None = None
+    semantic_contract: FutureSemanticContract | None = None
 
 
 class FutureFormsResult(BaseModel):

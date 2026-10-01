@@ -4,14 +4,16 @@ import logging
 from typing import Literal
 
 from .evidence_media import externalize_state_for_render
+from .future_models import FutureSemanticContract
 from .render_director import VisualDirectorError, fallback_visual_direction, generate_visual_direction, select_render_mode
 from .render_gateway import RenderGatewayError, render_future
-from .render_models import RenderAttempt, RenderRequest, RenderResult
+from .render_models import RenderAttempt, RenderCritique, RenderRequest, RenderResult
 from .render_prompt import compile_preview_render_request
 from .render_provider import RenderProvider, RenderProviderError
 from .render_review import enforce_render_gate
 from .render_review_agent import RenderReviewAgentError, evaluate_render
 from .run_store import SqliteRunStore, TransformationSession
+from .semantic_contract import freeze_semantic_contract
 from .visual_brief import generate_visual_brief
 
 
@@ -22,12 +24,77 @@ _CONCEPT_RENDER_ATTEMPTS = 2
 def _repair_preview_request(request: RenderRequest, instructions: list[str]) -> RenderRequest:
     if not instructions:
         instructions = [
-            "Regenerate more faithfully to the selected future and the supplied source photographs."
+            "Improve fidelity to the immutable Future contract without introducing new required geometry."
         ]
-    directive = "\n\nCRITIC-GUIDED REGENERATION DIRECTIVES:\n" + "\n".join(
-        f"- {item}" for item in instructions
+    directive = (
+        "\n\nCRITIC-GUIDED REGENERATION DIRECTIVES — IMPLEMENTATION HINTS ONLY; "
+        "THEY MUST NOT ALTER THE IMMUTABLE FUTURE CONTRACT:\n"
+        + "\n".join(f"- {item}" for item in instructions)
     )
     return request.model_copy(update={"prompt": request.prompt + directive})
+
+
+def _contract_repair_instructions(
+    review: RenderCritique,
+    contract: FutureSemanticContract,
+) -> list[str]:
+    """Convert critic failures into bounded repair hints.
+
+    Free-form critic prose is intentionally not forwarded to the renderer. Otherwise a
+    retry can turn a suggestion into a new hard requirement, causing semantic drift across
+    repeated renders. Only immutable requirement IDs may drive automatic repair.
+    """
+
+    by_id = {item.requirement_id: item for item in contract.requirements}
+    instructions: list[str] = []
+    for requirement_id in review.failed_contract_requirement_ids:
+        requirement = by_id.get(requirement_id)
+        if requirement is None:
+            continue
+        instructions.append(
+            f"Repair [{requirement.requirement_id}]: make this existing contract requirement more visibly legible — {requirement.text}. "
+            "Do not add an exact count, new part, new topology, or stricter sequence that is not stated here."
+        )
+    if instructions:
+        return instructions
+    if review.status in {"regenerate", "reject"}:
+        return [
+            "Improve visible fidelity to the immutable Future contract and supplied source ancestry. "
+            "Do not invent new mandatory counts, parts, symmetry, topology, or sequence details."
+        ]
+    return []
+
+
+def _persist_semantic_contract(
+    *,
+    session: TransformationSession,
+    candidate_id: str,
+    store: SqliteRunStore,
+):
+    if session.futures is None:
+        raise ValueError("Generate futures before rendering")
+    selected = list(session.futures.selected_futures)
+    future_index = next(
+        (index for index, item in enumerate(selected) if item.candidate.candidate_id == candidate_id),
+        None,
+    )
+    if future_index is None:
+        raise ValueError(f"Candidate {candidate_id} is not an approved visible future")
+    future = selected[future_index]
+    if future.semantic_contract is not None:
+        return session, future, future.semantic_contract
+
+    contract = freeze_semantic_contract(future.candidate)
+    future = future.model_copy(update={"semantic_contract": contract})
+    selected[future_index] = future
+    session = store.save(
+        session.model_copy(
+            update={
+                "futures": session.futures.model_copy(update={"selected_futures": selected})
+            }
+        )
+    )
+    return session, future, contract
 
 
 async def render_session_candidate(
@@ -44,18 +111,11 @@ async def render_session_candidate(
     if isinstance(provider, tuple):
         provider = provider[0]
 
-    if session.futures is None:
-        raise ValueError("Generate futures before rendering")
-    future = next(
-        (
-            item
-            for item in session.futures.selected_futures
-            if item.candidate.candidate_id == candidate_id
-        ),
-        None,
+    session, future, semantic_contract = _persist_semantic_contract(
+        session=session,
+        candidate_id=candidate_id,
+        store=store,
     )
-    if future is None:
-        raise ValueError(f"Candidate {candidate_id} is not an approved visible future")
     if future.review.status == "reject":
         raise ValueError("Rejected future cannot be rendered")
 
@@ -72,8 +132,7 @@ async def render_session_candidate(
     )
 
     # Render controls are intentionally request-scoped. They guide this image only and do not
-    # rewrite the durable project state or the selected future. This keeps a user's optional
-    # render note and presentation choice from leaking into later projects or build evidence.
+    # rewrite the durable project state, selected Future, or immutable semantic contract.
     clean_user_prompt = (user_prompt or "").strip()[:1200]
     existing_direction = (render_state.creative_intent.direction or "").strip()
     if clean_user_prompt:
@@ -95,12 +154,13 @@ async def render_session_candidate(
     if concept_mode:
         render_mode = select_render_mode(future)
         logger.info(
-            "render director:start session=%s candidate=%s mode=%s presentation=%s user_note=%s",
+            "render director:start session=%s candidate=%s mode=%s presentation=%s user_note=%s contract=%s",
             session.session_id,
             candidate_id,
             render_mode,
             presentation_mode,
             bool(clean_user_prompt),
+            semantic_contract.version,
         )
         try:
             direction = await generate_visual_direction(
@@ -153,6 +213,7 @@ async def render_session_candidate(
                 last_image_url = render.image_url
                 raw_review = await evaluate_render(
                     future=future,
+                    semantic_contract=semantic_contract,
                     request=request,
                     render=render,
                 )
@@ -169,7 +230,7 @@ async def render_session_candidate(
                 )
             )
             logger.info(
-                "render critic session=%s candidate=%s attempt=%s status=%s brief=%s source=%s provenance=%s geometry=%s invention=%s provider=%s job=%s",
+                "render critic session=%s candidate=%s attempt=%s status=%s brief=%s source=%s provenance=%s geometry=%s invention=%s failed_contract=%s provider=%s job=%s",
                 session.session_id,
                 candidate_id,
                 attempt_index,
@@ -179,6 +240,7 @@ async def render_session_candidate(
                 review.provenance_visibility_score,
                 review.geometry_consistency_score,
                 review.invention_risk_score,
+                ",".join(review.failed_contract_requirement_ids) or "none",
                 render.provider,
                 render.provider_job_id,
             )
@@ -198,11 +260,11 @@ async def render_session_candidate(
             if attempt_index >= attempt_limit:
                 break
 
-            repair_instructions = list(review.regeneration_instructions)
+            repair_instructions = _contract_repair_instructions(review, semantic_contract)
             if review.status == "reject":
                 repair_instructions = [
-                    "The previous image was fundamentally incompatible with the selected future. Start the visual composition over rather than polishing or preserving that failed topology.",
-                    "Re-anchor the next image to the supplied source photographs, the selected transformation, its signature gesture, and its required negative space. Do not keep invented geometry merely because it looked attractive.",
+                    "Start the visual composition over while preserving the same immutable Future contract and source ancestry. "
+                    "Do not preserve failed invented geometry and do not introduce any new hard requirement.",
                     *repair_instructions,
                 ]
             request = _repair_preview_request(request, repair_instructions)

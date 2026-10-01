@@ -47,6 +47,7 @@ class RenderCritique(StrictModel):
     geometry_consistency_score: int = Field(ge=0, le=100)
     invention_risk_score: int = Field(ge=0, le=100)
     violations: list[RenderViolation]
+    failed_contract_requirement_ids: list[str] = Field(default_factory=list)
     regeneration_instructions: list[str]
     summary: str
 

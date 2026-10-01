@@ -5,7 +5,7 @@ import os
 
 from openai import AsyncOpenAI
 
-from .future_models import ReviewedFuture
+from .future_models import FutureSemanticContract, ReviewedFuture
 from .prompt_loader import load_prompt_file
 from .render_models import ProviderRender, RenderCritique, RenderRequest
 
@@ -23,6 +23,7 @@ def load_prompt() -> str:
 async def evaluate_render(
     *,
     future: ReviewedFuture,
+    semantic_contract: FutureSemanticContract,
     request: RenderRequest,
     render: ProviderRender,
     client: AsyncOpenAI | None = None,
@@ -32,41 +33,38 @@ async def evaluate_render(
         raise RenderReviewAgentError("Rejected futures may not be render-reviewed")
     if request.candidate_id != future.candidate.candidate_id:
         raise RenderReviewAgentError("Candidate mismatch")
+    if semantic_contract.candidate_id != future.candidate.candidate_id:
+        raise RenderReviewAgentError("Semantic contract candidate mismatch")
 
     stage_note = (
         "A renderer-safe VisualBrief is attached to the future."
         if future.visual_brief is not None
         else (
-            "This is a concept-stage render without a separate VisualBrief. Treat the selected future, "
-            "the compiled render request, and the supplied source photographs together as the binding visual contract."
+            "This is a concept-stage render without a separate VisualBrief. Source/reference images still define provenance and ancestry."
         )
     )
-    candidate = future.candidate
-    semantic_contract = (
-        f"NAME: {candidate.name}\n"
-        f"ONE-LINE TRANSFORMATION: {candidate.one_line}\n"
-        f"TRANSFORMATION LOGIC: {candidate.transformation_logic}\n"
-        f"KEY OPERATIONS: {'; '.join(candidate.key_operations) or 'none declared'}\n"
-        f"MATERIAL ROLES: "
-        + "; ".join(
-            f"{use.material_item_id} => {use.role}"
-            + (f" ({use.note})" if use.note else "")
-            for use in candidate.material_uses
-        )
-    )
+    contract_lines = "\n".join(
+        f"- [{item.requirement_id}] ({item.kind}) {item.text}"
+        for item in semantic_contract.requirements
+    ) or "- No explicit transformation requirements were captured."
+    allowed_ids = [item.requirement_id for item in semantic_contract.requirements]
+
     content: list[dict] = [
         {
             "type": "input_text",
             "text": (
-                "Evaluate the generated concept image against this selected future and render request. "
-                "The transformation itself is the primary contract: check whether the image visibly performs the Future's stated path, sequence, progression, spatial relationship, and material operation. "
-                "Presence of the correct objects/colors is not enough. Do not reward atmosphere or polish when the semantic geometry is weak. "
-                "If the Future says that something changes gradually, link-by-link, through, around, into, before/after, or returns to another element, verify that relationship directly in the pixels. "
-                "Return only the structured review.\n\n"
+                "Evaluate the generated concept image against the IMMUTABLE FUTURE CONTRACT below. "
+                "This contract was frozen from the selected Future before rendering. It is the only source of hard semantic transformation requirements. "
+                "The compiled render request, user render note, Visual Director text, and any CRITIC-GUIDED REGENERATION DIRECTIVES are implementation guidance only: they MUST NOT create new hard requirements, counts, topology, ordering, symmetry, or geometry that are absent from the immutable contract. "
+                "You may still judge source/provenance honesty and generic physical plausibility independently.\n\n"
                 f"Review stage: {stage_note}\n\n"
-                f"BINDING SEMANTIC TRANSFORMATION CONTRACT:\n{semantic_contract}\n\n"
-                f"Selected future: {future.model_dump_json()}\n\n"
-                f"Render request: {request.model_dump_json()}"
+                f"IMMUTABLE FUTURE CONTRACT v1:\n{contract_lines}\n\n"
+                f"VALID REQUIREMENT IDS: {json.dumps(allowed_ids)}\n\n"
+                "For every semantic contract failure, put ONLY the corresponding IDs from VALID REQUIREMENT IDS into failed_contract_requirement_ids. "
+                "Never invent an ID. Never add a requirement because a previous retry instruction suggested one. "
+                "Regeneration instructions may explain how to better satisfy failed contract items, but must not narrow or expand the contract with new exact counts, new mandatory parts, or new topology.\n\n"
+                f"Selected future context (informative, not permission to expand the contract): {future.model_dump_json()}\n\n"
+                f"Current render request (implementation guidance, mutable across retries): {request.model_dump_json()}"
             ),
         },
         {"type": "input_image", "image_url": str(render.image_url), "detail": "high"},
@@ -93,6 +91,16 @@ async def evaluate_render(
     if not response.output_text:
         raise RenderReviewAgentError("Render review returned no structured output")
     try:
-        return RenderCritique.model_validate(json.loads(response.output_text))
+        review = RenderCritique.model_validate(json.loads(response.output_text))
     except (json.JSONDecodeError, ValueError) as exc:
         raise RenderReviewAgentError("Render review returned invalid structured output") from exc
+
+    allowed = set(allowed_ids)
+    filtered_ids = [
+        requirement_id
+        for requirement_id in review.failed_contract_requirement_ids
+        if requirement_id in allowed
+    ]
+    if filtered_ids != review.failed_contract_requirement_ids:
+        review = review.model_copy(update={"failed_contract_requirement_ids": filtered_ids})
+    return review
