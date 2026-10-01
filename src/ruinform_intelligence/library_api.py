@@ -53,6 +53,55 @@ def _review_for_entry(entry: LibraryEntry):
         raise HTTPException(status_code=404, detail="Generation snapshot is unavailable") from exc
 
 
+def _archived_future_contract(review) -> str:
+    """Freeze the accepted future's design logic into branch creative intent.
+
+    A fork keeps all original physical evidence, but evidence re-analysis intentionally
+    rebuilds ProjectState. Without an explicit parent-form contract the next ideation pass
+    can treat the branch as a fresh material session. Keep a compact textual ancestor in
+    creative_intent so concept generation and self-healing both see the same locked basis.
+    """
+
+    concept = review.concept_snapshot if isinstance(review.concept_snapshot, dict) else {}
+    one_line = str(concept.get("one_line") or concept.get("oneLine") or "").strip()
+    thesis = str(concept.get("artistic_thesis") or concept.get("artisticThesis") or "").strip()
+    logic = str(concept.get("transformation_logic") or concept.get("transformationLogic") or "").strip()
+    original_direction = str(review.creative_direction or "").strip()
+
+    source_names = {
+        material_id: name
+        for material_id, name in zip(review.source_material_ids, review.source_items)
+    }
+    role_rows: list[str] = []
+    raw_uses = concept.get("material_uses") if isinstance(concept.get("material_uses"), list) else []
+    for raw in raw_uses[:8]:
+        if not isinstance(raw, dict):
+            continue
+        material_id = str(raw.get("material_item_id") or "").strip()
+        role = str(raw.get("role") or "").strip()
+        if role:
+            role_rows.append(f"{source_names.get(material_id, material_id or 'source')}: {role}")
+
+    parts = [
+        "ARCHIVED FUTURE BASIS — EVOLVE, DO NOT RESET.",
+        f"LOCKED PARENT FORM: {review.candidate_name}.",
+        f"PARENT ONE-LINE: {one_line}" if one_line else "",
+        f"PARENT ARTISTIC THESIS: {thesis}" if thesis else "",
+        f"PARENT TRANSFORMATION LOGIC: {logic}" if logic else "",
+        f"PARENT SOURCE ROLES: {'; '.join(role_rows)}" if role_rows else "",
+        f"ORIGINAL MAKER DIRECTION: {original_direction}" if original_direction else "",
+        (
+            "Treat the accepted parent future as the locked design ancestor of this branch. "
+            "Preserve its signature gesture, core function or spatial logic, recognizable silhouette, "
+            "and material ancestry unless the maker explicitly asks to replace one of those traits. "
+            "Newly attached matter is an addition to the parent form: first explore supporting, extending, "
+            "clothing, cushioning, connecting, bracing, surfacing, or locally transforming the existing object. "
+            "Do not restart from the raw source set and do not invent an unrelated fresh object merely because new matter was added."
+        ),
+    ]
+    return "\n".join(part for part in parts if part)[:2800]
+
+
 def _entry_view(entry: LibraryEntry, *, reveal_owner: bool = False) -> dict[str, object]:
     review = _review_for_entry(entry)
     concept = review.concept_snapshot if isinstance(review.concept_snapshot, dict) else {}
@@ -197,12 +246,23 @@ def fork_generation(generation_id: str, payload: ForkRequest) -> dict[str, objec
     ):
         raise HTTPException(status_code=409, detail="The source future is no longer available in its session")
 
+    branch_contract = _archived_future_contract(review)
+    forked_state = source.project_state.model_copy(
+        deep=True,
+        update={
+            "creative_intent": source.project_state.creative_intent.model_copy(
+                update={"direction": branch_contract}
+            )
+        },
+    )
+
     now = utc_now_iso()
     forked = source.model_copy(
         deep=True,
         update={
             "session_id": str(uuid4()),
             "stage": "completed",
+            "project_state": forked_state,
             "selected_candidate_id": review.candidate_id,
             "render_result": RenderResult.model_validate(review.render_snapshot),
             "build_plan": None,
@@ -239,15 +299,24 @@ async def add_branch_evidence(
         raise HTTPException(status_code=400, detail="Upload between 1 and 8 images")
     new_urls: list[str] = []
     try:
+        source_session = get_session(session_id)
+        locked_intent = source_session.project_state.creative_intent.model_copy(deep=True)
         for index, image in enumerate(images, start=1):
             new_urls.append(await _upload_to_data_url(image, index=index))
         updated = await continue_session_evidence(
-            session=get_session(session_id),
+            session=source_session,
             new_image_urls=new_urls,
             user_statement=user_context.strip() or "New matter added to evolve an archived RUINFORM future.",
             measurements=[],
             store=store(),
         )
+        # Material Eye reconstructs ProjectState after every evidence turn. Restore the
+        # fork's archived-future contract and creative controls so the next Design Brain
+        # pass cannot silently become a fresh-project ideation request.
+        updated_state = updated.project_state.model_copy(
+            update={"creative_intent": locked_intent}
+        )
+        updated = store().save(updated.model_copy(update={"project_state": updated_state}))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
