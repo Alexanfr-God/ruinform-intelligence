@@ -6,6 +6,9 @@ from .render_director import VisualDirection, fallback_visual_direction, select_
 from .render_models import RenderReference, RenderRequest
 
 
+_BRANCH_PARENT_EVIDENCE_ID = "branch_parent_future"
+
+
 def _source_references(state: ProjectState, future: ReviewedFuture) -> list[RenderReference]:
     material_ids = {use.material_item_id for use in future.candidate.material_uses}
     evidence_to_materials: dict[str, set[str]] = {}
@@ -22,13 +25,18 @@ def _source_references(state: ProjectState, future: ReviewedFuture) -> list[Rend
         if evidence.source_type != "image" or not evidence.uri or evidence.evidence_id in seen:
             continue
         linked = sorted(evidence_to_materials.get(evidence.evidence_id, set()))
-        if linked or not evidence_to_materials:
+        is_locked_parent = evidence.evidence_id == _BRANCH_PARENT_EVIDENCE_ID
+        if is_locked_parent or linked or not evidence_to_materials:
             refs.append(
                 RenderReference(
                     evidence_id=evidence.evidence_id,
                     image_url=evidence.uri,
                     material_item_id=linked[0] if len(linked) == 1 else None,
-                    note="source material evidence",
+                    note=(
+                        "locked parent future design reference; preserve form ancestry, not a newly supplied material"
+                        if is_locked_parent
+                        else "source material evidence"
+                    ),
                 )
             )
             seen.add(evidence.evidence_id)
@@ -168,6 +176,7 @@ def compile_preview_render_request(
         "MUST KEEP:\n"
         f"{keep}\n\n"
         "Create ONE finished photorealistic authored object. Preserve provenance of the real source materials. "
+        "If a locked parent-future reference is supplied, treat that image as the existing object to evolve: preserve its recognizable composition, gesture, and identity while integrating ONLY the active branch materials described by the candidate. Do not mine that reference image for unrelated historical source objects. "
         "Secondary material must enter into a meaningful spatial/formal relationship with the hero, not merely form a base. "
         "Accent light must reveal or intensify the signature gesture, never substitute for the idea. "
         "Use realistic material-specific reflections, translucency, folds, seams, thickness and wear. "

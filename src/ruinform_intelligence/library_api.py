@@ -16,12 +16,14 @@ from .library_store import (
 )
 from .live_api import _upload_to_data_url, get_session, store
 from .live_evidence import continue_session_evidence
+from .models import EvidenceItem
 from .render_models import RenderResult
 from .review_store import ReviewItemNotFound, capture_session_render, create_review_store
 from .run_store import SessionNotFound, create_run_store, utc_now_iso
 
 
 router = APIRouter(prefix="/v1/library", tags=["generation-library"])
+_BRANCH_PARENT_EVIDENCE_ID = "branch_parent_future"
 
 
 class CaptureRequest(BaseModel):
@@ -56,10 +58,9 @@ def _review_for_entry(entry: LibraryEntry):
 def _archived_future_contract(review) -> str:
     """Freeze the accepted future's design logic into branch creative intent.
 
-    A fork keeps all original physical evidence, but evidence re-analysis intentionally
-    rebuilds ProjectState. Without an explicit parent-form contract the next ideation pass
-    can treat the branch as a fresh material session. Keep a compact textual ancestor in
-    creative_intent so concept generation and self-healing both see the same locked basis.
+    A fork keeps the accepted artwork as its design ancestor. The original raw source
+    inventory remains provenance/history, but once new matter is attached it must not
+    silently become active source material again.
     """
 
     concept = review.concept_snapshot if isinstance(review.concept_snapshot, dict) else {}
@@ -91,15 +92,13 @@ def _archived_future_contract(review) -> str:
         f"PARENT SOURCE ROLES: {'; '.join(role_rows)}" if role_rows else "",
         f"ORIGINAL MAKER DIRECTION: {original_direction}" if original_direction else "",
         (
-            "Treat the accepted parent future as the locked design ancestor of this branch. "
-            "Preserve its signature gesture, core function or spatial logic, recognizable silhouette, "
-            "and material ancestry unless the maker explicitly asks to replace one of those traits. "
-            "Newly attached matter is an addition to the parent form: first explore supporting, extending, "
-            "clothing, cushioning, connecting, bracing, surfacing, or locally transforming the existing object. "
-            "Do not restart from the raw source set and do not invent an unrelated fresh object merely because new matter was added."
+            "Treat the accepted parent render as the LOCKED DESIGN ANCESTOR of this branch, not as a loose mood reference and not as raw matter. "
+            "Preserve its signature gesture, core function or spatial logic, recognizable silhouette, and visible material ancestry unless the maker explicitly asks to replace one of those traits. "
+            "Only materials identified in the CURRENT branch material inventory are newly introduced physical matter. Original pre-generation source objects are historical provenance only and MUST NOT re-enter the active material pool just because they existed in the parent's old evidence set. "
+            "Newly attached matter should support, extend, clothe, cushion, connect, brace, surface, or locally transform the existing parent object. Do not restart from the raw source set and do not invent an unrelated fresh object merely because new matter was added."
         ),
     ]
-    return "\n".join(part for part in parts if part)[:2800]
+    return "\n".join(part for part in parts if part)[:3000]
 
 
 def _entry_view(entry: LibraryEntry, *, reveal_owner: bool = False) -> dict[str, object]:
@@ -169,6 +168,52 @@ def _authorized_entry(generation_id: str, owner_id: str | None) -> LibraryEntry:
     if not entry.is_public and entry.owner_id != owner_id:
         raise HTTPException(status_code=403, detail="This generation is private")
     return entry
+
+
+def _branch_parent_render_url(session) -> str:
+    for evidence in session.project_state.evidence:
+        if evidence.evidence_id == _BRANCH_PARENT_EVIDENCE_ID and evidence.uri:
+            return evidence.uri
+    result = session.render_result
+    if result is not None and result.accepted_image_url:
+        return result.accepted_image_url
+    return ""
+
+
+def _branch_physical_state(session):
+    """Return only the physical matter that belongs to the active branch turn.
+
+    On the first branch addition, the fork still carries the parent's original raw
+    photographs/material inventory. They are provenance, not active ingredients, so drop
+    them before Material Eye reads the new upload. On later additions, keep prior NEW
+    branch matter but temporarily remove the locked parent render so it is never analyzed
+    as a physical material.
+    """
+
+    state = session.project_state
+    has_parent_marker = any(
+        item.evidence_id == _BRANCH_PARENT_EVIDENCE_ID for item in state.evidence
+    )
+    if not has_parent_marker:
+        return state.model_copy(
+            deep=True,
+            update={
+                "evidence": [],
+                "materials": [],
+                "claim_history": [],
+                "unresolved_critical_unknowns": [],
+                "next_user_request": None,
+            },
+        )
+    return state.model_copy(
+        deep=True,
+        update={
+            "evidence": [
+                item for item in state.evidence
+                if item.evidence_id != _BRANCH_PARENT_EVIDENCE_ID
+            ]
+        },
+    )
 
 
 @router.post("/capture")
@@ -289,32 +334,53 @@ async def add_branch_evidence(
     images: list[UploadFile] = File(...),
     user_context: str = Form(default=""),
 ) -> dict[str, object]:
-    """Add new physical matter to a forked generation without losing its lineage.
+    """Attach NEW matter to a locked archived future without reactivating old raw inputs."""
 
-    The fork already contains the parent's evidence. These uploads are appended to that
-    evidence set, while futures/render state is intentionally cleared so the Design Brain
-    must create a genuinely new evolution rather than silently reusing the parent render.
-    """
     if not 1 <= len(images) <= 8:
         raise HTTPException(status_code=400, detail="Upload between 1 and 8 images")
     new_urls: list[str] = []
     try:
         source_session = get_session(session_id)
         locked_intent = source_session.project_state.creative_intent.model_copy(deep=True)
+        parent_render_url = _branch_parent_render_url(source_session)
+        if not parent_render_url:
+            raise ValueError("Archived parent render is unavailable for branch evolution")
+
+        physical_state = _branch_physical_state(source_session)
+        analysis_session = source_session.model_copy(
+            deep=True,
+            update={"project_state": physical_state},
+        )
         for index, image in enumerate(images, start=1):
             new_urls.append(await _upload_to_data_url(image, index=index))
+
         updated = await continue_session_evidence(
-            session=source_session,
+            session=analysis_session,
             new_image_urls=new_urls,
-            user_statement=user_context.strip() or "New matter added to evolve an archived RUINFORM future.",
+            user_statement=(
+                user_context.strip()
+                or "New physical matter added to evolve the locked archived RUINFORM future."
+            ),
             measurements=[],
             store=store(),
         )
-        # Material Eye reconstructs ProjectState after every evidence turn. Restore the
-        # fork's archived-future contract and creative controls so the next Design Brain
-        # pass cannot silently become a fresh-project ideation request.
+
+        parent_reference = EvidenceItem(
+            evidence_id=_BRANCH_PARENT_EVIDENCE_ID,
+            source_type="image",
+            uri=parent_render_url,
+            text=(
+                "LOCKED PARENT FUTURE VISUAL REFERENCE. Design ancestry only; "
+                "do not classify this render as newly supplied physical matter."
+            ),
+        )
         updated_state = updated.project_state.model_copy(
-            update={"creative_intent": locked_intent}
+            update={
+                "creative_intent": locked_intent,
+                # Parent goes first so every vision stage sees the locked object even
+                # when the maker adds several new photographs in one branch turn.
+                "evidence": [parent_reference, *updated.project_state.evidence],
+            }
         )
         updated = store().save(updated.model_copy(update={"project_state": updated_state}))
     except ValueError as exc:
