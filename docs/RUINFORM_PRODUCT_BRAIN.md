@@ -57,7 +57,7 @@ Every accepted object can preserve an AI Concept Seed, receive artist-controlled
 ## RF-002 · FUTURE INTELLIGENCE / DIVERSITY
 
 **TYPE:** SYSTEM  
-**STATUS:** BUILDING  
+**STATUS:** DONE  
 **TARGET:** V1
 
 ### Why
@@ -70,10 +70,12 @@ Two visible Futures should feel like two genuinely different ideas, not two name
 - actively explore cutting, reforming, disassembly, repetition/scale, tension, surface transformation, role reassignment, kinetic interaction, and physical capture instead of defaulting to attachment;
 - preserve source provenance while allowing real material transformation.
 
-### Current implementation direction
-- Design Brain overlay defines Concept Seed behavior and stronger transformation-family spread;
-- final visible-pair selector prefers a strong second Future from a different operator family / source relationship;
-- quality remains critic-gated; diversity is not allowed to rescue a rejected concept.
+### Implemented
+- Design Brain explores multiple internal candidates and exposes two quality-gated Futures;
+- semantic anti-sibling logic separates repeated motifs such as fracture/fault/fissure;
+- physical-operator classification prefers real fabrication operations over poetic language;
+- final visible-pair selection preserves critic quality first, then rewards physical/semantic/source diversity;
+- clean control test produced `Afterimage Reliquary` vs `Wrong Channel`: different hero sources, operations, silhouettes, and Concept Seeds.
 
 ### Done when
 Repeated tests with different source sets consistently return two Futures a user can distinguish by idea without reading their titles.
@@ -83,7 +85,7 @@ Repeated tests with different source sets consistently return two Futures a user
 ## RF-003 · MULTI-MATERIAL ROLES
 
 **TYPE:** SYSTEM  
-**STATUS:** APPROVED / NOT STARTED  
+**STATUS:** TESTING  
 **TARGET:** V1
 
 ### Intended roles
@@ -91,6 +93,22 @@ Repeated tests with different source sets consistently return two Futures a user
 
 ### Rule
 Do not force every uploaded object into every Future, but do not repeatedly ignore the larger source set. Every used source must earn a necessary role.
+
+### Implemented foundation
+- every newly generated used source receives one canonical primary role: `hero`, `structure`, `connector`, `surface`, or `symbolic`;
+- `symbolic` means physically present because the source identity carries essential meaning, never decorative filler;
+- omitted source matter is recorded explicitly with a reason instead of disappearing silently;
+- a source cannot simultaneously be marked used and omitted;
+- archived free-text material roles remain readable through legacy normalization;
+- omission is treated as a valid design decision, not a failure of source coverage.
+
+### Testing next
+Generate a fresh multi-source Workshop and inspect whether the Brain:
+- chooses a coherent hero rather than equal-part soup;
+- gives every participating source a necessary role;
+- uses `symbolic` only when identity genuinely matters;
+- explicitly omits weak sources instead of forcing them in;
+- varies source roles across the two visible Futures.
 
 ---
 
@@ -138,3 +156,20 @@ V1 keeps only:
 `MAKE PLAN → simple maker cues → VERIFY`
 
 Detailed measurement-driven engineering, fabrication gates, and verified build planning are intentionally deferred until the creative core is stable.
+
+---
+
+## RF-007 · FUTURE LATENCY
+
+**TYPE:** PERFORMANCE  
+**STATUS:** PARKED  
+**TARGET:** AFTER CREATIVE QUALITY STABILIZES
+
+### Observation
+MIX currently spends an internal search budget on multiple Futures, pre-render critique, optional one-pass self-healing, and final diversity selection. This improves quality but can take several minutes.
+
+### Goal later
+Reduce ordinary `IMAGINE 2 FUTURES` latency without sacrificing the quality gate, ideally by parallelizing checks, avoiding unnecessary repair, and using cheaper passes where safe.
+
+### Product decision
+Speed is recorded but is not the current priority; creative quality and material intelligence come first.
