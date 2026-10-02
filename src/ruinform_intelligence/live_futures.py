@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Literal
 
 from .evidence_gate import can_advance_to_ideation
@@ -26,20 +27,88 @@ def _internal_candidate_count(mode: ConceptMode) -> int:
     return 3 if mode == "hybrid" else 2
 
 
+def _source_ids(item) -> frozenset[str]:
+    return frozenset(use.material_item_id for use in item.candidate.material_uses)
+
+
+def _transformation_family(item) -> str:
+    """Infer the candidate's dominant physical operator for pair diversity.
+
+    Design Brain already returns key_operations and transformation_logic. The Workshop
+    does not need another generated taxonomy field just to avoid showing two siblings;
+    a conservative text classifier is enough to make the final two-option selection
+    diversity-aware while keeping the public candidate schema stable.
+    """
+    candidate = item.candidate
+    text = " ".join(
+        [candidate.transformation_logic, candidate.one_line, *candidate.key_operations]
+    ).lower()
+
+    families: tuple[tuple[str, str], ...] = (
+        ("subtract_reveal", r"\b(cut|slit|notch|trim|perforat|open|remove|reveal|carve|hollow|crescent)\w*"),
+        ("reform", r"\b(bend|fold|roll|flatten|twist|curve|flare|compress|stretch|reshape|re-form)\w*"),
+        ("disassemble_recompose", r"\b(disassembl|separat|unfasten|recompos|reassembl|reverse|reorient|expose)\w*"),
+        ("repeat_scale", r"\b(repeat|cascade|gradient|progressiv|concentric|array|rhythm|enlarge|shrink|scale)\w*"),
+        ("tension_suspend", r"\b(tension|suspend|hang|counterbalance|balance|cantilever|brace|trap|float)\w*"),
+        ("surface_skin", r"\b(laminat|weave|wrap|layer|stitch|skin|peel|upholster|surface)\w*"),
+        ("kinetic_interaction", r"\b(rotate|pivot|slide|hinge|spring|kinetic|move|motion|respond|spin)\w*"),
+        ("fusion_capture", r"\b(weld|rivet|clamp|bind|interlock|capture|bolt|join|link)\w*"),
+        ("role_reassignment", r"\b(reassign|become|turns? into|convert|repurpose|holder|hook|shelf|seat|valet|basin)\b"),
+    )
+    for family, pattern in families:
+        if re.search(pattern, text):
+            return family
+    return "other"
+
+
+def _diversity_score(candidate, anchor) -> float:
+    """Rank the second visible Future for quality *and* conceptual distance."""
+    score = float(candidate.rank_score)
+
+    if _transformation_family(candidate) != _transformation_family(anchor):
+        score += 18.0
+    if _source_ids(candidate) != _source_ids(anchor):
+        score += 8.0
+    if candidate.candidate.category != anchor.candidate.category:
+        score += 4.0
+
+    # `artistic_thesis` is the V1 Concept Seed. Exact duplication is a strong sibling
+    # signal, but we intentionally avoid pretending this lightweight selector performs
+    # semantic embedding analysis.
+    if candidate.candidate.artistic_thesis.strip().lower() != anchor.candidate.artistic_thesis.strip().lower():
+        score += 3.0
+    return score
+
+
 def _visible_preview(futures):
-    """Expose only the two strongest directions to the Workshop."""
+    """Expose two strong directions while avoiding near-sibling Futures.
+
+    The pre-render critic establishes quality. This final selector keeps the strongest
+    surviving candidate as the anchor, then prefers a second concept with a different
+    transformation family, source relationship, category, and Concept Seed when such a
+    credible option exists.
+    """
     ranked = list(futures.selected_futures)
     usable = [item for item in ranked if item.review.status != "reject"]
-    chosen = usable[:_VISIBLE_FUTURE_COUNT]
+    pool = usable or ranked
+    if not pool:
+        return futures.model_copy(update={"selected_futures": []})
+
+    chosen = [pool[0]]
+    if len(pool) > 1:
+        second = max(pool[1:], key=lambda item: _diversity_score(item, chosen[0]))
+        chosen.append(second)
+
     if len(chosen) < _VISIBLE_FUTURE_COUNT:
         chosen_ids = {item.candidate.candidate_id for item in chosen}
-        chosen.extend(
-            item
-            for item in ranked
-            if item.candidate.candidate_id not in chosen_ids
-        )
-        chosen = chosen[:_VISIBLE_FUTURE_COUNT]
-    return futures.model_copy(update={"selected_futures": chosen})
+        for item in ranked:
+            if item.candidate.candidate_id in chosen_ids:
+                continue
+            chosen.append(item)
+            if len(chosen) >= _VISIBLE_FUTURE_COUNT:
+                break
+
+    return futures.model_copy(update={"selected_futures": chosen[:_VISIBLE_FUTURE_COUNT]})
 
 
 async def discover_session_futures(
@@ -90,11 +159,12 @@ async def discover_session_futures(
         internal_visible = len(futures.selected_futures)
         futures = _visible_preview(futures)
         logger.info(
-            "futures vision-preview:done session=%s internal_visible=%s exposed=%s statuses=%s",
+            "futures vision-preview:done session=%s internal_visible=%s exposed=%s statuses=%s families=%s",
             session.session_id,
             internal_visible,
             len(futures.selected_futures),
             ",".join(item.review.status for item in futures.selected_futures),
+            ",".join(_transformation_family(item) for item in futures.selected_futures),
         )
     else:
         logger.info("futures verified:start session=%s", session.session_id)
