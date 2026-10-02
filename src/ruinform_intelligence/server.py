@@ -13,6 +13,7 @@ from .lab_postproduction import router as lab_postproduction_router
 from .library_api import router as library_router
 from .live_api import router as live_transformations_router
 from .live_mutation_api import router as live_mutation_router
+from .object_passport import router as object_passport_router
 from .workshop_build_api import router as workshop_build_router
 from .mvp_entry import router as mvp_entry_router
 from .render_api import router as render_router
@@ -235,6 +236,7 @@ app.include_router(future_forms_router)
 app.include_router(render_router)
 app.include_router(live_transformations_router)
 app.include_router(live_mutation_router)
+app.include_router(object_passport_router)
 app.include_router(workshop_build_router)
 app.include_router(library_router)
 # Static Studio entry routes must be registered before the dynamic
