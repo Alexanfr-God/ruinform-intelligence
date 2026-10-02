@@ -83,14 +83,26 @@ def _diversity_score(candidate, anchor) -> float:
 def _visible_preview(futures):
     """Expose two strong directions while avoiding near-sibling Futures.
 
-    The pre-render critic establishes quality. This final selector keeps the strongest
-    surviving candidate as the anchor, then prefers a second concept with a different
-    transformation family, source relationship, category, and Concept Seed when such a
-    credible option exists.
+    Quality is the hard boundary: when two or more candidates passed the critic, the
+    visible pair is chosen only from PASS candidates. Diversity then decides which
+    strong second direction complements the top-ranked anchor. REVISE is considered
+    only when fewer than two PASS candidates exist, and REJECT remains last-resort
+    fallback data rather than a diversity candidate.
     """
     ranked = list(futures.selected_futures)
-    usable = [item for item in ranked if item.review.status != "reject"]
-    pool = usable or ranked
+    passed = [item for item in ranked if item.review.status == "pass"]
+    non_rejected = [item for item in ranked if item.review.status != "reject"]
+
+    if len(passed) >= _VISIBLE_FUTURE_COUNT:
+        pool = passed
+    elif passed:
+        remaining = [
+            item for item in non_rejected if item.candidate.candidate_id != passed[0].candidate.candidate_id
+        ]
+        pool = passed + remaining
+    else:
+        pool = non_rejected or ranked
+
     if not pool:
         return futures.model_copy(update={"selected_futures": []})
 
