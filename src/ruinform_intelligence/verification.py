@@ -22,6 +22,9 @@ class VerificationOutput(StrictModel):
     construction_match: int = Field(ge=0, le=100)
     detail_match: int = Field(ge=0, le=100)
     confidence: int = Field(ge=0, le=100)
+    challenge_code_visible_in_all: bool
+    challenge_code_match_confidence: int = Field(ge=0, le=100)
+    challenge_observations: list[str]
     verdict: Literal["strong_match", "partial_match", "weak_match"]
     summary: str
     matching_features: list[str]
@@ -43,6 +46,7 @@ def _input(
     build_image_urls: list[str],
     concept_name: str | None,
     concept_description: str | None,
+    expected_challenge_code: str,
 ) -> list[dict]:
     content: list[dict] = [
         {
@@ -55,6 +59,14 @@ def _input(
                 "identity and placement, construction logic/major joins, and distinctive details. Do not claim "
                 "structural safety, authenticity, material chemistry, ownership, or engineering certification. "
                 "If the photos do not show enough of the object, reduce confidence and explain what view is missing.\n\n"
+                "LIVE CAMERA CHALLENGE:\n"
+                f"- Expected one-time code: {expected_challenge_code}\n"
+                "- The exact code must be visibly legible in EVERY submitted physical-build photo on a real note/card or other physical marker in the scene.\n"
+                "- A digital overlay, app UI text, screenshot annotation, edited caption, or code visible only in the generated reference does NOT satisfy the challenge.\n"
+                "- For challenge_observations, report one concise observation per physical photo, including whether the expected code is legible and appears physically present in the photographed scene.\n"
+                "- Set challenge_code_visible_in_all=true only when the exact expected code is legible and physically present in every required physical photo.\n"
+                "- challenge_code_match_confidence reflects confidence in that code-presence judgment, not object similarity.\n"
+                "- If the code is missing, wrong, obscured, digitally overlaid, or absent from any required photo, set challenge_code_visible_in_all=false. In that case use weak_match, overall_match <= 10, confidence <= 20, and request a new live camera capture with the current challenge visible.\n\n"
                 "EVIDENCE VALIDITY RULES:\n"
                 "- Physical-build photos must be independent photographic evidence of a real object.\n"
                 "- If a submitted physical photo appears to be the generated reference itself, a screenshot/export of it, "
@@ -80,12 +92,12 @@ def _input(
         {
             "type": "input_text",
             "text": (
-                "Return a calibrated physical-build visual match assessment. overall_match is the headline verified-build "
-                "fidelity score, so evidence quality matters: do not turn raw pixel/image similarity into a verification score. "
-                "Use strong_match only when the major form and distinctive design language are clearly preserved by valid physical evidence; "
-                "partial_match when the concept is recognizable but meaningful geometry/material/detail differences exist or coverage is limited; "
-                "weak_match when the built object does not visually preserve the concept or when the supplied evidence is not credible physical evidence. "
-                "Keep matching_features and deviations concise and observable."
+                "Return a calibrated physical-build visual match assessment. Validate the live challenge before awarding any meaningful match score. "
+                "overall_match is the headline verified-build fidelity score, so evidence quality matters: do not turn raw pixel/image similarity into a verification score. "
+                "Use strong_match only when the live challenge passes and the major form and distinctive design language are clearly preserved by valid physical evidence; "
+                "partial_match when the challenge passes but the concept is only partly recognizable, meaningful geometry/material/detail differences exist, or coverage is limited; "
+                "weak_match when the live challenge fails, the built object does not visually preserve the concept, or the supplied evidence is not credible physical evidence. "
+                "Keep matching_features, deviations and challenge_observations concise and observable."
             ),
         }
     )
@@ -96,6 +108,7 @@ async def verify_physical_build(
     *,
     reference_image_url: str,
     build_image_urls: list[str],
+    expected_challenge_code: str,
     concept_name: str | None = None,
     concept_description: str | None = None,
     client: AsyncOpenAI | None = None,
@@ -105,6 +118,9 @@ async def verify_physical_build(
         raise ValueError("A rendered design reference is required")
     if not 2 <= len(build_image_urls) <= 3:
         raise ValueError("Upload 2 or 3 physical build photos for verification")
+    expected_challenge_code = expected_challenge_code.strip().upper()
+    if len(expected_challenge_code) != 4:
+        raise ValueError("A valid 4-character live verification challenge is required")
 
     client = client or AsyncOpenAI()
     model = model or os.getenv("RUINFORM_VERIFICATION_MODEL", DEFAULT_MODEL)
@@ -113,15 +129,16 @@ async def verify_physical_build(
             model=model,
             instructions=(
                 "Be conservative, visual, and evidence-bound. Never reward a result just because it is aesthetically pleasing. "
-                "Never infer unseen sides. First judge whether the submitted physical photos are credible, independent views of a real build. "
-                "Do not let copied reference imagery or repeated near-identical views inflate match or confidence. "
-                "A match score is a design-comparison aid, not a safety or authenticity certificate."
+                "Never infer unseen sides. First validate the one-time physical challenge code in every submitted view, then judge whether the submitted photos are credible, independent views of a real build. "
+                "Do not let copied reference imagery, digital overlays, or repeated near-identical views inflate match or confidence. "
+                "A match score is a design-comparison aid, not a safety, ownership, material, or authenticity certificate."
             ),
             input=_input(
                 reference_image_url=reference_image_url,
                 build_image_urls=build_image_urls,
                 concept_name=concept_name,
                 concept_description=concept_description,
+                expected_challenge_code=expected_challenge_code,
             ),
             text={
                 "format": {
