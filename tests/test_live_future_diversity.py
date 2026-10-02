@@ -17,6 +17,7 @@ def _future(
     artistic_thesis: str,
     material_ids: list[str],
     category: str = "functional_art",
+    status: str = "pass",
 ) -> ReviewedFuture:
     candidate = CandidateForm(
         candidate_id=candidate_id,
@@ -41,7 +42,7 @@ def _future(
     )
     review = FeasibilityReview(
         candidate_id=candidate_id,
-        status="pass",
+        status=status,
         feasibility_score=80,
         material_fit_score=80,
         buildability_score=80,
@@ -113,4 +114,45 @@ def test_visible_preview_prefers_a_diverse_second_future() -> None:
     assert [item.candidate.candidate_id for item in visible.selected_futures] == [
         "preview_01",
         "preview_03",
+    ]
+
+
+def test_visible_preview_does_not_choose_revise_for_diversity_when_two_pass_exist() -> None:
+    strongest = _future(
+        "preview_01",
+        rank=92,
+        logic="Fold the source into a shallow curved body.",
+        operations=["bend", "fold"],
+        artistic_thesis="Protection emerges from deformation.",
+        material_ids=["a"],
+    )
+    second_pass = _future(
+        "preview_02",
+        rank=88,
+        logic="Fold the second source around a void.",
+        operations=["bend"],
+        artistic_thesis="A protected absence becomes useful space.",
+        material_ids=["b"],
+    )
+    tempting_revise = _future(
+        "preview_03",
+        rank=89,
+        logic="Cut and reveal a radical negative-space frame.",
+        operations=["cut", "reveal"],
+        artistic_thesis="Absence becomes the part that carries attention.",
+        material_ids=["c"],
+        category="sculpture",
+        status="revise",
+    )
+    result = FutureFormsResult(
+        internal_candidate_count=3,
+        reviewed_candidate_count=3,
+        selected_futures=[strongest, tempting_revise, second_pass],
+    )
+
+    visible = _visible_preview(result)
+    assert [item.review.status for item in visible.selected_futures] == ["pass", "pass"]
+    assert [item.candidate.candidate_id for item in visible.selected_futures] == [
+        "preview_01",
+        "preview_02",
     ]
