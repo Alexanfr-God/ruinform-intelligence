@@ -1,0 +1,116 @@
+from ruinform_intelligence.future_models import (
+    CandidateForm,
+    FeasibilityReview,
+    FutureFormsResult,
+    MaterialUse,
+    ReviewedFuture,
+)
+from ruinform_intelligence.live_futures import _transformation_family, _visible_preview
+
+
+def _future(
+    candidate_id: str,
+    *,
+    rank: float,
+    logic: str,
+    operations: list[str],
+    artistic_thesis: str,
+    material_ids: list[str],
+    category: str = "functional_art",
+) -> ReviewedFuture:
+    candidate = CandidateForm(
+        candidate_id=candidate_id,
+        name=candidate_id,
+        one_line=logic,
+        category=category,
+        artistic_thesis=artistic_thesis,
+        transformation_logic=logic,
+        material_uses=[
+            MaterialUse(
+                material_item_id=material_id,
+                role="necessary",
+                estimated_fraction=None,
+                note=None,
+            )
+            for material_id in material_ids
+        ],
+        added_materials=[],
+        required_tools=[],
+        key_operations=operations,
+        unresolved_dependencies=[],
+    )
+    review = FeasibilityReview(
+        candidate_id=candidate_id,
+        status="pass",
+        feasibility_score=80,
+        material_fit_score=80,
+        buildability_score=80,
+        originality_score=85,
+        artistic_impact_score=85,
+        usefulness_score=70,
+        value_potential_score=80,
+        reasons=["credible"],
+        required_changes=[],
+        unresolved_dependencies=[],
+    )
+    return ReviewedFuture(candidate=candidate, review=review, rank_score=rank)
+
+
+def test_transformation_family_detects_distinct_operator_types() -> None:
+    folded = _future(
+        "folded",
+        rank=90,
+        logic="Bend and fold the plate into a curved shell.",
+        operations=["bend", "fold"],
+        artistic_thesis="Domestic rigidity becomes protective shelter.",
+        material_ids=["a"],
+    )
+    cascade = _future(
+        "cascade",
+        rank=88,
+        logic="Repeat the rings in a progressive cascade.",
+        operations=["repeat", "scale"],
+        artistic_thesis="Value grows through repetition.",
+        material_ids=["a", "b"],
+    )
+    assert _transformation_family(folded) == "reform"
+    assert _transformation_family(cascade) == "repeat_scale"
+
+
+def test_visible_preview_prefers_a_diverse_second_future() -> None:
+    strongest = _future(
+        "preview_01",
+        rank=92,
+        logic="Fold the source into a shallow curved body.",
+        operations=["bend", "fold"],
+        artistic_thesis="Protection emerges from deformation.",
+        material_ids=["a"],
+    )
+    sibling = _future(
+        "preview_02",
+        rank=91,
+        logic="Fold and bend the same source into a second curved body.",
+        operations=["bend", "fold"],
+        artistic_thesis="Protection emerges from deformation.",
+        material_ids=["a"],
+    )
+    different = _future(
+        "preview_03",
+        rank=86,
+        logic="Cut open the second source to reveal a negative-space frame.",
+        operations=["cut", "reveal"],
+        artistic_thesis="Absence becomes the part that carries attention.",
+        material_ids=["b"],
+        category="sculpture",
+    )
+    result = FutureFormsResult(
+        internal_candidate_count=3,
+        reviewed_candidate_count=3,
+        selected_futures=[strongest, sibling, different],
+    )
+
+    visible = _visible_preview(result)
+    assert [item.candidate.candidate_id for item in visible.selected_futures] == [
+        "preview_01",
+        "preview_03",
+    ]
