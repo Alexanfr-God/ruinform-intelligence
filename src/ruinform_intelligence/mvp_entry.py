@@ -49,10 +49,10 @@ async def new_project() -> str:
     return _page("""
 <div class='k'>RUINFORM / MVP TEST FLOW</div>
 <h1>SHOW ME<br>WHAT SURVIVED.</h1>
-<p>Start a fresh project. Upload the real objects exactly as they are. Material Eye reads the photographs first; then the vision-first Design Brain will invent four different RUINFORM futures from the actual images.</p>
+<p>Start a fresh project. Upload the real objects exactly as they are. Material Eye reads the photographs first; then the vision-first Design Brain will invent two different RUINFORM futures from the actual images.</p>
 <div class='steps'>
 <div class='step'><strong>01 / PHOTOS</strong>1–8 real source images.</div>
-<div class='step'><strong>02 / DESIGN BRAIN</strong>Four concepts created while seeing the originals.</div>
+<div class='step'><strong>02 / DESIGN BRAIN</strong>Two concepts created while seeing the originals.</div>
 <div class='step'><strong>03 / GPT IMAGE</strong>Render only the concept worth testing.</div>
 </div>
 <div class='panel'>
