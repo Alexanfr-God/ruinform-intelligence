@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from .live_api import get_session
 from .verification import VerificationError, VerificationOutput, verify_physical_build
+from .verification_state import apply_verification_result
 
 
 router = APIRouter(prefix="/v1/live-transformations", tags=["live-verification"])
@@ -37,6 +38,24 @@ def _reference_digest(reference_image_url: str) -> str | None:
     return hashlib.sha256(raw).hexdigest()
 
 
+def _reference_image_url(session) -> str | None:
+    """Use the accepted render when available; otherwise use the last AI target.
+
+    A rejected render can still be the build's visual target. Treating it as a
+    comparison reference does not promote it to accepted proof or change the
+    immutable Future contract.
+    """
+
+    render_result = session.render_result
+    if render_result is None:
+        return None
+    if render_result.accepted_image_url:
+        return str(render_result.accepted_image_url)
+    if render_result.attempts:
+        return str(render_result.attempts[-1].render.image_url)
+    return None
+
+
 @router.post("/{session_id}/verify-upload", response_model=VerificationOutput)
 async def verify_upload(
     session_id: str,
@@ -46,8 +65,7 @@ async def verify_upload(
         raise HTTPException(status_code=400, detail="Upload 2 or 3 photos of the physical build")
 
     session = get_session(session_id)
-    render_result = session.render_result
-    reference_image_url = render_result.accepted_image_url if render_result is not None else None
+    reference_image_url = _reference_image_url(session)
     if not reference_image_url:
         raise HTTPException(status_code=409, detail="Render the selected future before verification")
 
@@ -80,7 +98,7 @@ async def verify_upload(
                 status_code=400,
                 detail="The generated reference cannot be submitted as physical-build evidence. Photograph the real object.",
             )
-        return await verify_physical_build(
+        result = await verify_physical_build(
             reference_image_url=reference_image_url,
             build_image_urls=build_image_urls,
             concept_name=future.candidate.name if future is not None else None,
@@ -90,6 +108,18 @@ async def verify_upload(
                 else None
             ),
         )
+        candidate_id = (
+            future.candidate.candidate_id
+            if future is not None
+            else session.selected_candidate_id
+        )
+        if candidate_id:
+            apply_verification_result(
+                source_session_id=session_id,
+                candidate_id=candidate_id,
+                result=result,
+            )
+        return result
     except HTTPException:
         raise
     except ValueError as exc:
