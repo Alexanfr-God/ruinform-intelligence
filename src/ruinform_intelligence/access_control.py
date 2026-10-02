@@ -8,6 +8,9 @@ from fastapi import HTTPException, Request
 
 async def require_api_access(request: Request) -> None:
     path = request.url.path
+    public_object_read = request.method == "GET" and (
+        path.startswith("/object/") or path.startswith("/v1/objects/")
+    )
     if (
         path == "/health"
         or path.startswith("/lab")
@@ -15,6 +18,7 @@ async def require_api_access(request: Request) -> None:
         or path == "/studio-login"
         or path.startswith("/studio/")
         or path == "/studio"
+        or public_object_read
     ):
         return
 
