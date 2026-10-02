@@ -9,29 +9,46 @@ from .verification import VerificationOutput
 
 
 def verification_state_for(result: VerificationOutput) -> tuple[str, str]:
-    """Map a visual verification result to durable passport state.
+    """Map a two-gate verification result to durable passport state.
 
-    VERIFIED is intentionally conservative. A valid live challenge is a hard gate:
-    visual similarity alone can never verify a passport. Anything credible but not
-    decisive is kept for human/admin review; weak or invalid evidence never upgrades
-    the passport merely because a camera submission happened.
+    Gate 1 (live proof) is binary and mandatory. No object similarity result can
+    upgrade the passport unless the fresh challenge is valid. Gate 2 then maps
+    valid physical evidence to VERIFIED / NEEDS_REVIEW / UNVERIFIED.
     """
 
     if (
-        not result.challenge_code_visible_in_all
+        result.proof_status != "valid"
+        or not result.challenge_code_visible_in_all
         or result.challenge_code_match_confidence < 80
+        or not result.object_match_evaluated
     ):
         return "IDEA", "UNVERIFIED"
 
+    if any(
+        value is None
+        for value in (
+            result.overall_match,
+            result.silhouette_match,
+            result.material_match,
+            result.construction_match,
+            result.detail_match,
+            result.confidence,
+        )
+    ):
+        return "IDEA", "UNVERIFIED"
+
+    overall_match = int(result.overall_match)
+    confidence = int(result.confidence)
+
     if (
         result.verdict == "strong_match"
-        and result.overall_match >= 85
-        and result.confidence >= 80
+        and overall_match >= 85
+        and confidence >= 80
         and not result.next_capture_request
     ):
         return "VERIFIED", "VERIFIED"
 
-    if result.verdict == "weak_match" or result.overall_match < 50 or result.confidence < 40:
+    if result.verdict == "weak_match" or overall_match < 50 or confidence < 40:
         return "IDEA", "UNVERIFIED"
 
     return "PHYSICAL", "NEEDS_REVIEW"
