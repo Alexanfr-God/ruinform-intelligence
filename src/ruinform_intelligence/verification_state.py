@@ -11,10 +11,17 @@ from .verification import VerificationOutput
 def verification_state_for(result: VerificationOutput) -> tuple[str, str]:
     """Map a visual verification result to durable passport state.
 
-    VERIFIED is intentionally conservative. Anything credible but not decisive is
-    kept for human/admin review; weak or low-confidence evidence never upgrades the
-    passport merely because a camera submission happened.
+    VERIFIED is intentionally conservative. A valid live challenge is a hard gate:
+    visual similarity alone can never verify a passport. Anything credible but not
+    decisive is kept for human/admin review; weak or invalid evidence never upgrades
+    the passport merely because a camera submission happened.
     """
+
+    if (
+        not result.challenge_code_visible_in_all
+        or result.challenge_code_match_confidence < 80
+    ):
+        return "IDEA", "UNVERIFIED"
 
     if (
         result.verdict == "strong_match"
