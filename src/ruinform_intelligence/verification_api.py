@@ -3,16 +3,27 @@ from __future__ import annotations
 import base64
 import hashlib
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel
 
 from .live_api import get_session
+from .object_passport import object_store
 from .verification import VerificationError, VerificationOutput, verify_physical_build
+from .verification_challenge import VerificationChallengeError, challenge_store
 from .verification_state import apply_verification_result
 
 
 router = APIRouter(prefix="/v1/live-transformations", tags=["live-verification"])
 _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 _MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+
+
+class VerificationChallengeResponse(BaseModel):
+    challenge_id: str
+    code: str
+    expires_at_iso: str
+    object_id: str
+    instructions: list[str]
 
 
 async def _upload_to_data_url(upload: UploadFile, *, index: int) -> tuple[str, str]:
@@ -56,9 +67,52 @@ def _reference_image_url(session) -> str | None:
     return None
 
 
+def _selected_future(session):
+    if session.futures is None or not session.selected_candidate_id:
+        return None
+    return next(
+        (
+            item
+            for item in session.futures.selected_futures
+            if item.candidate.candidate_id == session.selected_candidate_id
+        ),
+        None,
+    )
+
+
+@router.post("/{session_id}/verification-challenge", response_model=VerificationChallengeResponse)
+async def create_verification_challenge(session_id: str) -> VerificationChallengeResponse:
+    session = get_session(session_id)
+    future = _selected_future(session)
+    if future is None:
+        raise HTTPException(status_code=409, detail="Select a Future before starting physical verification")
+
+    passport = object_store().find_for_future(session_id, future.candidate.candidate_id)
+    if passport is None:
+        raise HTTPException(status_code=409, detail="Create the Object Passport before starting physical verification")
+
+    challenge = challenge_store().issue(
+        source_session_id=session_id,
+        candidate_id=future.candidate.candidate_id,
+    )
+    return VerificationChallengeResponse(
+        challenge_id=challenge.challenge_id,
+        code=challenge.code,
+        expires_at_iso=challenge.expires_at_iso,
+        object_id=passport.object_id,
+        instructions=[
+            "Write the code on a real paper/card and place it beside the physical object.",
+            "Capture the whole object with the code clearly legible in frame one.",
+            "Move 30-60 degrees and capture a second independent view with the same code visible.",
+            "Do not use screenshots, gallery images, digital text overlays, or the generated reference as evidence.",
+        ],
+    )
+
+
 @router.post("/{session_id}/verify-upload", response_model=VerificationOutput)
 async def verify_upload(
     session_id: str,
+    challenge_id: str = Form(...),
     images: list[UploadFile] = File(...),
 ) -> VerificationOutput:
     if not 2 <= len(images) <= 3:
@@ -69,16 +123,10 @@ async def verify_upload(
     if not reference_image_url:
         raise HTTPException(status_code=409, detail="Render the selected future before verification")
 
-    future = None
-    if session.futures is not None and session.selected_candidate_id:
-        future = next(
-            (
-                item
-                for item in session.futures.selected_futures
-                if item.candidate.candidate_id == session.selected_candidate_id
-            ),
-            None,
-        )
+    future = _selected_future(session)
+    candidate_id = future.candidate.candidate_id if future is not None else session.selected_candidate_id
+    if not candidate_id:
+        raise HTTPException(status_code=409, detail="Select a Future before verification")
 
     try:
         encoded = [
@@ -98,9 +146,16 @@ async def verify_upload(
                 status_code=400,
                 detail="The generated reference cannot be submitted as physical-build evidence. Photograph the real object.",
             )
+
+        challenge = challenge_store().consume(
+            challenge_id=challenge_id,
+            source_session_id=session_id,
+            candidate_id=candidate_id,
+        )
         result = await verify_physical_build(
             reference_image_url=reference_image_url,
             build_image_urls=build_image_urls,
+            expected_challenge_code=challenge.code,
             concept_name=future.candidate.name if future is not None else None,
             concept_description=(
                 future.candidate.one_line or future.candidate.transformation_logic
@@ -108,20 +163,16 @@ async def verify_upload(
                 else None
             ),
         )
-        candidate_id = (
-            future.candidate.candidate_id
-            if future is not None
-            else session.selected_candidate_id
+        apply_verification_result(
+            source_session_id=session_id,
+            candidate_id=candidate_id,
+            result=result,
         )
-        if candidate_id:
-            apply_verification_result(
-                source_session_id=session_id,
-                candidate_id=candidate_id,
-                result=result,
-            )
         return result
     except HTTPException:
         raise
+    except VerificationChallengeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except VerificationError as exc:
