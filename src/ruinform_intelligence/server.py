@@ -42,10 +42,43 @@ def _ensure_review_schema() -> None:
     _review_schema_prepared = True
 
 
-# RFM-INT-0021 keeps the stable Studio route surface but swaps the concept-stage
-# callable for a bounded one-pass self-healing wrapper. PASS ideas remain locked;
-# REVISE/REJECT slots may be repaired/replaced once before the user sees them.
-studio_module.generate_concept_preview = generate_self_healing_preview
+# RFM-INT-0025 keeps the one-pass self-healing contract from RFM-INT-0021 but
+# constrains the live Studio control flow to exactly two visible futures. PASS ideas
+# stay locked; REVISE/REJECT slots may still be repaired/replaced once, never recursively.
+async def _generate_two_future_preview(**kwargs):
+    kwargs["candidate_count"] = 2
+    return await generate_self_healing_preview(**kwargs)
+
+
+studio_module.generate_concept_preview = _generate_two_future_preview
+
+
+# Keep the Studio copy aligned with the two-future control budget without changing the
+# underlying route surface. This wrapper is UI-only; generation behavior is enforced above.
+_original_concept_form = studio_module._concept_form
+
+
+def _two_future_concept_form(session) -> str:
+    return (
+        _original_concept_form(session)
+        .replace("FINDING 4 POSSIBLE FUTURES.", "FINDING 2 POSSIBLE FUTURES.")
+        .replace("GENERATE 4 CONCEPTS", "GENERATE 2 CONCEPTS")
+    )
+
+
+studio_module._concept_form = _two_future_concept_form
+
+_original_two_future_concepts_page = studio_module._concepts_page
+
+
+def _two_future_concepts_page(session) -> str:
+    return _original_two_future_concepts_page(session).replace(
+        "I SEE 4<br>FUTURES.",
+        "I SEE 2<br>FUTURES.",
+    )
+
+
+studio_module._concepts_page = _two_future_concepts_page
 
 
 # RFM-INT-0024.1 fixes a navigation trap: BACK TO FUTURES used to strand users away
