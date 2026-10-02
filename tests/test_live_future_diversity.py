@@ -5,7 +5,11 @@ from ruinform_intelligence.future_models import (
     MaterialUse,
     ReviewedFuture,
 )
-from ruinform_intelligence.live_futures import _transformation_family, _visible_preview
+from ruinform_intelligence.live_futures import (
+    _semantic_motif,
+    _transformation_family,
+    _visible_preview,
+)
 
 
 def _future(
@@ -18,11 +22,13 @@ def _future(
     material_ids: list[str],
     category: str = "functional_art",
     status: str = "pass",
+    name: str | None = None,
+    one_line: str | None = None,
 ) -> ReviewedFuture:
     candidate = CandidateForm(
         candidate_id=candidate_id,
-        name=candidate_id,
-        one_line=logic,
+        name=name or candidate_id,
+        one_line=one_line or logic,
         category=category,
         artistic_thesis=artistic_thesis,
         transformation_logic=logic,
@@ -78,22 +84,61 @@ def test_transformation_family_detects_distinct_operator_types() -> None:
     assert _transformation_family(cascade) == "repeat_scale"
 
 
-def test_visible_preview_prefers_a_diverse_second_future() -> None:
+def test_transformation_family_prefers_literal_operations_over_poetic_copy() -> None:
+    future = _future(
+        "horizon",
+        rank=89,
+        logic="Register the intact bottle inside a field so the horizon appears bent.",
+        operations=["position", "register"],
+        artistic_thesis="A stable horizon develops one optical fault.",
+        material_ids=["a", "b"],
+        one_line="The bottle bends a continuous horizon into an optical fault.",
+    )
+    assert _transformation_family(future) == "arrangement"
+
+
+def test_semantic_motif_treats_fault_fissure_and_broken_as_one_family() -> None:
+    faultline = _future(
+        "faultline",
+        rank=92,
+        logic="Arrange stones around one deliberate opening.",
+        operations=["arrange"],
+        artistic_thesis="A fissure interrupts an otherwise stable field.",
+        material_ids=["a", "b"],
+        name="Faultline Table Field",
+        one_line="A broken ring gathers around a fissure.",
+    )
+    horizon = _future(
+        "horizon",
+        rank=90,
+        logic="Position a bottle through wire rings.",
+        operations=["position"],
+        artistic_thesis="One optical fault breaks a disciplined horizon.",
+        material_ids=["b", "c"],
+        name="Broken Horizon Vessel",
+    )
+    assert _semantic_motif(faultline) == "fracture"
+    assert _semantic_motif(horizon) == "fracture"
+
+
+def test_visible_preview_prefers_a_physically_and_semantically_diverse_second_future() -> None:
     strongest = _future(
         "preview_01",
         rank=92,
-        logic="Fold the source into a shallow curved body.",
-        operations=["bend", "fold"],
-        artistic_thesis="Protection emerges from deformation.",
-        material_ids=["a"],
+        logic="Arrange stones around one deliberate opening.",
+        operations=["arrange"],
+        artistic_thesis="A fissure interrupts an otherwise stable field.",
+        material_ids=["a", "b"],
+        name="Faultline Table Field",
     )
-    sibling = _future(
+    semantic_sibling = _future(
         "preview_02",
         rank=91,
-        logic="Fold and bend the same source into a second curved body.",
-        operations=["bend", "fold"],
-        artistic_thesis="Protection emerges from deformation.",
-        material_ids=["a"],
+        logic="Position a bottle through a disciplined wire field.",
+        operations=["position"],
+        artistic_thesis="One optical fault breaks a continuous horizon.",
+        material_ids=["b", "c"],
+        name="Broken Horizon Vessel",
     )
     different = _future(
         "preview_03",
@@ -101,13 +146,13 @@ def test_visible_preview_prefers_a_diverse_second_future() -> None:
         logic="Cut open the second source to reveal a negative-space frame.",
         operations=["cut", "reveal"],
         artistic_thesis="Absence becomes the part that carries attention.",
-        material_ids=["b"],
+        material_ids=["c"],
         category="sculpture",
     )
     result = FutureFormsResult(
         internal_candidate_count=3,
         reviewed_candidate_count=3,
-        selected_futures=[strongest, sibling, different],
+        selected_futures=[strongest, semantic_sibling, different],
     )
 
     visible = _visible_preview(result)
