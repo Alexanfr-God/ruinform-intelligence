@@ -19,6 +19,7 @@ from . import nft_schema_patch as _nft_schema_patch  # noqa: F401
 from .nft_public import router as nft_public_router
 from .object_economics_v2 import router as object_economics_router
 from .verification_api import router as verification_router
+from .verification_checkpoint import router as verification_checkpoint_router
 from .verification_disputes import router as verification_disputes_router
 from .wallet_identity import router as wallet_identity_router
 
@@ -90,13 +91,7 @@ def _openai_rate_limit_response(request: Request, exc: RateLimitError):
 
 @app.middleware("http")
 async def bridge_legacy_lab_navigation(request: Request, call_next):
-    """Keep authenticated Studio users out of the legacy Basic-Auth Lab trap.
-
-    Studio uses a signed cookie while the old /lab pages still use HTTP Basic. A
-    historical BACK TO EVIDENCE LAB link therefore caused browsers to challenge for
-    credentials again. When a Studio cookie is present and a user navigates to the
-    legacy session page, send them back to the equivalent Studio session instead.
-    """
+    """Keep authenticated Studio users out of the legacy Basic-Auth Lab trap."""
     path = request.url.path
     if (
         request.method == "GET"
@@ -132,7 +127,7 @@ async def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "ruinform-intelligence",
-        "build": "RFM-INT-0034",
+        "build": "RFM-INT-0035",
         "storage": storage,
     }
 
@@ -166,6 +161,7 @@ async def material_eye_analyze(payload: MaterialEyeRequest) -> MaterialEyeRespon
 
 
 app.include_router(verification_router)
+app.include_router(verification_checkpoint_router)
 app.include_router(verification_disputes_router)
 app.include_router(wallet_identity_router)
 app.include_router(generation_registry_router)
