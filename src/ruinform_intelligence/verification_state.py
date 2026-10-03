@@ -10,12 +10,7 @@ from .verification import VerificationOutput
 
 
 def verification_state_for(result: VerificationOutput) -> tuple[str, str]:
-    """Map a two-gate verification result to durable passport state.
-
-    Gate 1 (live proof) is binary and mandatory. No object similarity result can
-    upgrade the passport unless the fresh challenge is valid. Gate 2 then maps
-    valid physical evidence to VERIFIED / NEEDS_REVIEW / UNVERIFIED.
-    """
+    """Map a two-gate verification result to durable passport state."""
 
     if (
         result.proof_status != "valid"
@@ -65,16 +60,24 @@ def _mutate_payload(payload_json: str, result: VerificationOutput) -> str:
     payload["build_status"] = build_status
     payload["verification_status"] = verification_status
 
-    # Preserve the AI assessment separately from the simplified passport state.
-    # These fields are provenance: they remain available for creator appeals,
-    # NFT metadata, and later human review without changing the permanent RuF ID.
+    # Durable checkpoint. The UI can reconstruct the completed Verify stage after
+    # refresh without relying on ephemeral React/local browser state.
     payload["verification_proof_status"] = result.proof_status
     payload["verification_object_match_evaluated"] = result.object_match_evaluated
     payload["verification_score"] = result.overall_match
+    payload["verification_silhouette_match"] = result.silhouette_match
+    payload["verification_material_match"] = result.material_match
+    payload["verification_construction_match"] = result.construction_match
+    payload["verification_detail_match"] = result.detail_match
     payload["verification_verdict"] = result.verdict
     payload["verification_confidence"] = result.confidence
     payload["verification_summary"] = result.summary
+    payload["verification_matching_features"] = result.matching_features
+    payload["verification_deviations"] = result.deviations
+    payload["verification_next_capture_request"] = result.next_capture_request
+    payload["verification_challenge_visible_in_all"] = result.challenge_code_visible_in_all
     payload["verification_challenge_confidence"] = result.challenge_code_match_confidence
+    payload["verification_challenge_observations"] = result.challenge_observations
     payload["verification_updated_at_iso"] = _utc_now_iso()
     return json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
 
