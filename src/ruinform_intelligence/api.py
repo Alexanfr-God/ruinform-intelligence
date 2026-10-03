@@ -18,7 +18,7 @@ from .nft_devnet import router as nft_devnet_router
 from . import nft_schema_patch as _nft_schema_patch  # noqa: F401
 from . import passport_provenance_patch as _passport_provenance_patch  # noqa: F401
 from .nft_public import router as nft_public_router
-from .object_economics_v2 import router as object_economics_router
+from .object_economics_v3 import router as object_economics_router
 from .verification_api import router as verification_router
 from .verification_checkpoint import router as verification_checkpoint_router
 from .verification_disputes import router as verification_disputes_router
@@ -128,7 +128,7 @@ async def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "ruinform-intelligence",
-        "build": "RFM-INT-0035",
+        "build": "RFM-INT-0036",
         "storage": storage,
     }
 
