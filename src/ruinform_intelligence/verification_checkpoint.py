@@ -215,7 +215,31 @@ def _test_override_payload(payload: dict) -> dict:
     payload["verification_challenge_observations"] = ["Test-only creator-authorized override for RuF-0005"]
     payload["verification_test_override"] = True
     payload["verification_updated_at_iso"] = now
+    payload["test_override_bootstrap_consumed"] = True
     return payload
+
+
+def _bootstrap_ruf_0005_test_override() -> None:
+    backend_id = "RF-0005"
+    try:
+        payload, raw = _read_payload(backend_id)
+        if payload.get("test_override_bootstrap_consumed") is True:
+            return
+        identity = _identity_row(backend_id)
+        actor = identity.creator_wallet or "SYSTEM_DEVNET_TEST"
+        _write_payload_with_history(
+            backend_id,
+            actor,
+            "TEST_OVERRIDE_BOOTSTRAP",
+            raw,
+            _test_override_payload(payload),
+        )
+    except Exception:
+        # This is a one-object devnet migration only; it must never block service startup.
+        return
+
+
+_bootstrap_ruf_0005_test_override()
 
 
 @router.get("/v1/objects/{object_id}/verification-checkpoint", response_model=VerificationCheckpointResponse)
