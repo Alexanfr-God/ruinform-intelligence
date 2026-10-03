@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .verification import VerificationOutput
@@ -54,11 +55,27 @@ def verification_state_for(result: VerificationOutput) -> tuple[str, str]:
     return "PHYSICAL", "NEEDS_REVIEW"
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def _mutate_payload(payload_json: str, result: VerificationOutput) -> str:
     payload = json.loads(payload_json)
     build_status, verification_status = verification_state_for(result)
     payload["build_status"] = build_status
     payload["verification_status"] = verification_status
+
+    # Preserve the AI assessment separately from the simplified passport state.
+    # These fields are provenance: they remain available for creator appeals,
+    # NFT metadata, and later human review without changing the permanent RuF ID.
+    payload["verification_proof_status"] = result.proof_status
+    payload["verification_object_match_evaluated"] = result.object_match_evaluated
+    payload["verification_score"] = result.overall_match
+    payload["verification_verdict"] = result.verdict
+    payload["verification_confidence"] = result.confidence
+    payload["verification_summary"] = result.summary
+    payload["verification_challenge_confidence"] = result.challenge_code_match_confidence
+    payload["verification_updated_at_iso"] = _utc_now_iso()
     return json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
 
 
