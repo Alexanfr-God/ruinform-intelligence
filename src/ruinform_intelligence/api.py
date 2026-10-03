@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, HttpUrl
 from .access_control import require_api_access
 from .evidence_contract import EvidenceContractReport, validate_state_contract
 from .evidence_gate import can_advance_to_ideation
+from .generation_registry import router as generation_registry_router
 from .material_eye import MaterialEyeError, analyze_materials
 from .models import ProjectConstraints, ProjectState
 from .verification_api import router as verification_router
@@ -161,3 +162,4 @@ async def material_eye_analyze(payload: MaterialEyeRequest) -> MaterialEyeRespon
 
 app.include_router(verification_router)
 app.include_router(wallet_identity_router)
+app.include_router(generation_registry_router)
