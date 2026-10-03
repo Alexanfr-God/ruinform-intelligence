@@ -15,6 +15,7 @@ from .generation_registry import router as generation_registry_router
 from .material_eye import MaterialEyeError, analyze_materials
 from .models import ProjectConstraints, ProjectState
 from .nft_devnet import router as nft_devnet_router
+from .nft_reconciliation import router as nft_reconciliation_router
 from . import nft_schema_patch as _nft_schema_patch  # noqa: F401
 from . import passport_provenance_patch as _passport_provenance_patch  # noqa: F401
 from .nft_public import router as nft_public_router
@@ -168,4 +169,5 @@ app.include_router(wallet_identity_router)
 app.include_router(generation_registry_router)
 app.include_router(object_economics_router)
 app.include_router(nft_devnet_router)
+app.include_router(nft_reconciliation_router)
 app.include_router(nft_public_router)
