@@ -9,7 +9,9 @@ from fastapi import HTTPException, Request
 async def require_api_access(request: Request) -> None:
     path = request.url.path
     public_object_read = request.method == "GET" and (
-        path.startswith("/object/") or path.startswith("/v1/objects/")
+        path.startswith("/object/")
+        or path.startswith("/v1/objects/")
+        or path.startswith("/public/nft-passport/")
     )
     if (
         path == "/health"
