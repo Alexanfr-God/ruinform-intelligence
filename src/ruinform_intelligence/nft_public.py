@@ -191,7 +191,10 @@ async def create_devnet_mint_intent_with_metadata(
         wallet_session=x_ruinform_wallet_session,
     )
     snapshot, snapshot_hash, public_url = _rewrite_intent_snapshot(result.intent_id, payload)
-    attributes = list(result.attributes)
+    attributes = [
+        {"key": item["key"], "value": snapshot_hash if item["key"] == "Snapshot SHA256" else item["value"]}
+        for item in result.attributes
+    ]
     if snapshot.get("edition_label"):
         attributes.append({"key": "Edition", "value": str(snapshot["edition_label"])})
     if snapshot.get("tags"):
