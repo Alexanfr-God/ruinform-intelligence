@@ -15,6 +15,7 @@ from .wallet_identity import _identity_row, resolve_wallet_session
 
 
 router = APIRouter(tags=["verification-checkpoint"])
+_TEST_OVERRIDE_OBJECTS = {"RF-0005"}
 
 
 class VerificationCheckpointResponse(BaseModel):
@@ -162,10 +163,10 @@ def _reset_payload(payload: dict) -> dict:
     return payload
 
 
-def _soft_reset(object_id: str, actor_wallet: str, snapshot_json: str, payload: dict) -> None:
+def _write_payload_with_history(object_id: str, actor_wallet: str, event_type: str, snapshot_json: str, payload: dict) -> None:
     event_id = uuid4().hex
     now = _utc_now_iso()
-    next_json = json.dumps(_reset_payload(payload), separators=(",", ":"), ensure_ascii=False)
+    next_json = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
     database_url = _database_url()
     if database_url:
         import psycopg
@@ -174,7 +175,7 @@ def _soft_reset(object_id: str, actor_wallet: str, snapshot_json: str, payload: 
             with conn.cursor() as cur:
                 cur.execute(
                     "INSERT INTO ruinform_verification_history(event_id,object_id,event_type,snapshot_json,actor_wallet,created_at_iso) VALUES (%s,%s,%s,%s,%s,%s)",
-                    (event_id, object_id, "RESET", snapshot_json, actor_wallet, now),
+                    (event_id, object_id, event_type, snapshot_json, actor_wallet, now),
                 )
                 cur.execute("UPDATE ruinform_objects SET payload_json=%s WHERE object_id=%s", (next_json, object_id))
             conn.commit()
@@ -183,9 +184,38 @@ def _soft_reset(object_id: str, actor_wallet: str, snapshot_json: str, payload: 
         _ensure_history_schema_sqlite(conn)
         conn.execute(
             "INSERT INTO ruinform_verification_history(event_id,object_id,event_type,snapshot_json,actor_wallet,created_at_iso) VALUES (?,?,?,?,?,?)",
-            (event_id, object_id, "RESET", snapshot_json, actor_wallet, now),
+            (event_id, object_id, event_type, snapshot_json, actor_wallet, now),
         )
         conn.execute("UPDATE ruinform_objects SET payload_json=? WHERE object_id=?", (next_json, object_id))
+
+
+def _soft_reset(object_id: str, actor_wallet: str, snapshot_json: str, payload: dict) -> None:
+    _write_payload_with_history(object_id, actor_wallet, "RESET", snapshot_json, _reset_payload(payload))
+
+
+def _test_override_payload(payload: dict) -> dict:
+    now = _utc_now_iso()
+    payload["build_status"] = "VERIFIED"
+    payload["verification_status"] = "VERIFIED"
+    payload["verification_proof_status"] = "valid"
+    payload["verification_object_match_evaluated"] = True
+    payload["verification_score"] = 92
+    payload["verification_silhouette_match"] = 92
+    payload["verification_material_match"] = 92
+    payload["verification_construction_match"] = 92
+    payload["verification_detail_match"] = 92
+    payload["verification_verdict"] = "test_override_pass"
+    payload["verification_confidence"] = 100
+    payload["verification_summary"] = "DEVNET TEST OVERRIDE: RuF-0005 was manually advanced for mint-flow testing. This is not a production physical-verification result."
+    payload["verification_matching_features"] = ["Devnet mint-flow test override"]
+    payload["verification_deviations"] = []
+    payload["verification_next_capture_request"] = None
+    payload["verification_challenge_visible_in_all"] = True
+    payload["verification_challenge_confidence"] = 100
+    payload["verification_challenge_observations"] = ["Test-only creator-authorized override for RuF-0005"]
+    payload["verification_test_override"] = True
+    payload["verification_updated_at_iso"] = now
+    return payload
 
 
 @router.get("/v1/objects/{object_id}/verification-checkpoint", response_model=VerificationCheckpointResponse)
@@ -220,5 +250,37 @@ async def reset_verification_checkpoint(
     if not current.exists:
         return current
     _soft_reset(backend_id, session.wallet_address, raw, payload)
+    next_payload, _ = _read_payload(backend_id)
+    return _checkpoint(backend_id, next_payload)
+
+
+@router.post("/v1/objects/{object_id}/verification-test-override", response_model=VerificationCheckpointResponse)
+async def test_override_verification_checkpoint(
+    object_id: str,
+    x_ruinform_wallet_session: str | None = Header(default=None, alias="x-ruinform-wallet-session"),
+) -> VerificationCheckpointResponse:
+    backend_id = _backend_object_id(object_id)
+    if backend_id not in _TEST_OVERRIDE_OBJECTS:
+        raise HTTPException(status_code=404, detail="Test override is not enabled for this Object ID")
+    try:
+        object_store().get(backend_id)
+    except ObjectPassportNotFound as exc:
+        raise HTTPException(status_code=404, detail="Object Passport not found") from exc
+
+    session = resolve_wallet_session(x_ruinform_wallet_session)
+    identity = _identity_row(backend_id)
+    if not identity.creator_wallet or identity.creator_wallet != session.wallet_address:
+        raise HTTPException(status_code=403, detail="Only the registered creator can apply the test override")
+
+    payload, raw = _read_payload(backend_id)
+    if payload.get("verification_test_override") is True and str(payload.get("verification_proof_status")).lower() == "valid":
+        return _checkpoint(backend_id, payload)
+    _write_payload_with_history(
+        backend_id,
+        session.wallet_address,
+        "TEST_OVERRIDE",
+        raw,
+        _test_override_payload(payload),
+    )
     next_payload, _ = _read_payload(backend_id)
     return _checkpoint(backend_id, next_payload)
