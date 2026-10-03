@@ -14,6 +14,7 @@ from .evidence_gate import can_advance_to_ideation
 from .material_eye import MaterialEyeError, analyze_materials
 from .models import ProjectConstraints, ProjectState
 from .verification_api import router as verification_router
+from .wallet_identity import router as wallet_identity_router
 
 
 app = FastAPI(
@@ -159,3 +160,4 @@ async def material_eye_analyze(payload: MaterialEyeRequest) -> MaterialEyeRespon
 
 
 app.include_router(verification_router)
+app.include_router(wallet_identity_router)
