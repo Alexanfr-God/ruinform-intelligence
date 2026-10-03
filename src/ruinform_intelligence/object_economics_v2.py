@@ -9,12 +9,12 @@ from pathlib import Path
 from . import object_economics as legacy
 
 
-# RF-CREATOR-v1.1 intentionally changes the mint gate from "AI VERIFIED only"
-# to "valid live proof captured". The Object Match score remains visible provenance
-# and may be disputed, but an AI fidelity opinion does not control the creator's
-# right to mint the one canonical passport for a real photographed object.
-TERMS_VERSION = "RF-CREATOR-v1.1"
-TERMS_TEXT = """RUINFORM CREATOR AGREEMENT — RF-CREATOR-v1.1
+# RF-CREATOR-v1.2 defines the canonical NFT Passport as RUINFORM's digital
+# certificate of provenance and ownership-chain continuity for a registered
+# physical object. A token alone does not claim physical possession; supported
+# transfer completes the digital record together with physical handoff/receipt.
+TERMS_VERSION = "RF-CREATOR-v1.2"
+TERMS_TEXT = """RUINFORM CREATOR AGREEMENT — RF-CREATOR-v1.2
 
 1. CREATOR REGISTRATION
 The signing wallet confirms that it controls the wallet used to register this RUINFORM Object Passport and is authorized to register the referenced object and creative work in RUINFORM.
@@ -25,25 +25,31 @@ The referenced RuF Object ID is the canonical RUINFORM identity for this registe
 3. ONE CANONICAL NFT PASSPORT
 RUINFORM will recognize no more than one canonical RUINFORM NFT Passport mint for the referenced RuF Object ID. A transfer, resale, burn, duplicate image, copy, fork, or derivative does not authorize a second canonical mint for the same RuF Object ID.
 
-4. LIVE PHYSICAL PROOF AND NFT ELIGIBILITY
+4. NFT PASSPORT AS PROVENANCE CERTIFICATE
+The canonical RUINFORM NFT Passport is intended to function inside the RUINFORM system as the digital certificate of provenance and ownership-chain continuity for the referenced registered physical object. It records canonical identity, creator provenance, agreement version/hash, verification history and supported ownership transfers. The token by itself does not represent that RUINFORM has physically inspected, possessed, shipped or delivered the object and does not by itself establish legal title under every jurisdiction.
+
+5. LIVE PHYSICAL PROOF AND NFT ELIGIBILITY
 A canonical NFT Passport becomes eligible to mint after the registered creator accepts this agreement and RUINFORM has recorded valid fresh live-camera proof for the referenced physical object. The AI Object Match score is a descriptive fidelity assessment and does not by itself block minting. A low, partial, disputed, or later-improved Object Match score remains part of the object's provenance.
 
-5. AI ASSESSMENT AND CREATOR APPEAL
+6. AI ASSESSMENT AND CREATOR APPEAL
 RUINFORM verification is an evidence-based AI assessment, not an infallible judgment. The registered creator may dispute a verification result. The original result remains preserved. A later review may uphold the result, override the assessment, or request new proof without changing the canonical RuF Object ID or authorizing a second canonical NFT mint.
 
-6. RUINFORM RESALE ROYALTY
+7. RUINFORM RESALE ROYALTY
 Qualifying resales completed through RUINFORM or a RUINFORM-recognized marketplace/transfer protocol are subject to a RUINFORM platform resale royalty of 5.00% (500 basis points), subject to applicable law and the mechanics of the marketplace or transfer protocol. This royalty is a platform resale royalty and does not state that RUINFORM owns 5% of the physical object.
 
-7. PHYSICAL AND DIGITAL TRANSFER
-For a registered physical object, the parties should transfer the RUINFORM Object Passport/NFT Passport together with the physical object through the supported RUINFORM transfer flow so provenance and current-owner history remain continuous.
+8. PHYSICAL AND DIGITAL TRANSFER / CHAIN OF CUSTODY
+A supported transfer of a registered physical object is intended to move the physical object and its canonical Object Passport/NFT Passport together. The transferor represents that it is authorized to transfer the physical object and the canonical Passport. RUINFORM may require buyer/recipient confirmation, QR or camera evidence, delivery evidence or another supported handoff step before recording the new current owner. Creator provenance never changes when current ownership changes.
 
-8. ON-CHAIN RECORD
-When the canonical NFT Passport is minted, RUINFORM may anchor the RuF Object ID, this agreement version, the exact agreement hash, the royalty configuration, and the then-current verification state on Solana or in the canonical NFT metadata/plugins.
+9. OWNERSHIP RECORD AND PHYSICAL POSSESSION
+The current-owner field and NFT ownership are RUINFORM provenance records. A blockchain transfer without the corresponding supported physical handoff may be marked incomplete, disputed or out of good standing. Likewise, an off-platform physical transfer that does not transfer the canonical Passport may break the documented chain of custody until resolved through a supported RUINFORM process.
 
-9. GOOD-STANDING PROGRAM
-RUINFORM may offer badges, reduced fees, visibility, rewards, or other benefits for verified, accurately transferred, and good-standing objects. Such benefits are optional program features and are not guaranteed consideration under this agreement.
+10. ON-CHAIN RECORD
+When the canonical NFT Passport is minted, RUINFORM may anchor the RuF Object ID, this agreement version, the exact agreement hash, the royalty configuration, the then-current verification state, and a content hash of the mint snapshot on Solana or in the canonical NFT metadata/plugins.
 
-10. IMMUTABLE ACCEPTANCE RECORD
+11. GOOD-STANDING PROGRAM
+RUINFORM may offer badges, reduced fees, visibility, rewards, free or reduced-cost minting, or other benefits for verified, accurately transferred and good-standing objects and participants. Such benefits are optional program features and are not guaranteed consideration under this agreement.
+
+12. IMMUTABLE ACCEPTANCE RECORD
 Acceptance is object-specific. RUINFORM records the signing wallet, RuF Object ID, agreement version, exact agreement SHA-256 hash, signature, and timestamp. A later agreement version does not silently replace the version accepted for this object.
 """
 TERMS_HASH = hashlib.sha256(TERMS_TEXT.encode("utf-8")).hexdigest()
