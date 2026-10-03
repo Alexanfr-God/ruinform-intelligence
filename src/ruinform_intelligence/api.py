@@ -16,6 +16,7 @@ from .material_eye import MaterialEyeError, analyze_materials
 from .models import ProjectConstraints, ProjectState
 from .nft_devnet import router as nft_devnet_router
 from . import nft_schema_patch as _nft_schema_patch  # noqa: F401
+from . import passport_provenance_patch as _passport_provenance_patch  # noqa: F401
 from .nft_public import router as nft_public_router
 from .object_economics_v2 import router as object_economics_router
 from .verification_api import router as verification_router
