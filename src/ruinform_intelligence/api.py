@@ -14,6 +14,7 @@ from .evidence_gate import can_advance_to_ideation
 from .generation_registry import router as generation_registry_router
 from .material_eye import MaterialEyeError, analyze_materials
 from .models import ProjectConstraints, ProjectState
+from .object_economics import router as object_economics_router
 from .verification_api import router as verification_router
 from .wallet_identity import router as wallet_identity_router
 
@@ -163,3 +164,4 @@ async def material_eye_analyze(payload: MaterialEyeRequest) -> MaterialEyeRespon
 app.include_router(verification_router)
 app.include_router(wallet_identity_router)
 app.include_router(generation_registry_router)
+app.include_router(object_economics_router)
