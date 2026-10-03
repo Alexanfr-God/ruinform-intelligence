@@ -15,6 +15,7 @@ from .generation_registry import router as generation_registry_router
 from .material_eye import MaterialEyeError, analyze_materials
 from .models import ProjectConstraints, ProjectState
 from .nft_devnet import router as nft_devnet_router
+from .nft_public import router as nft_public_router
 from .object_economics_v2 import router as object_economics_router
 from .verification_api import router as verification_router
 from .verification_disputes import router as verification_disputes_router
@@ -130,7 +131,7 @@ async def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "ruinform-intelligence",
-        "build": "RFM-INT-0033",
+        "build": "RFM-INT-0034",
         "storage": storage,
     }
 
@@ -169,3 +170,4 @@ app.include_router(wallet_identity_router)
 app.include_router(generation_registry_router)
 app.include_router(object_economics_router)
 app.include_router(nft_devnet_router)
+app.include_router(nft_public_router)
