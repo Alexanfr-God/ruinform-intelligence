@@ -12,8 +12,13 @@ provenance it does not yet understand. Configure the model to preserve extras an
 rebuild its validator/serializer once at application startup.
 """
 
+from .legacy_passport_recovery import recover_known_legacy_passports
 from .object_passport import ObjectPassport
 
 
 ObjectPassport.model_config["extra"] = "allow"
 ObjectPassport.model_rebuild(force=True)
+
+# One-time, idempotent migration for known pre-checkpoint records. It is intentionally
+# executed only when a real database is configured; local/unit-test imports are no-ops.
+recover_known_legacy_passports()
