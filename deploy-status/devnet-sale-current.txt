@@ -1,0 +1,6 @@
+status=WAITING_FOR_FUNDING
+run_id=37174740785
+deployer=5TA6YwLYKMrxScUpcJWZiojYJt1BndzafeMWp5YnHLZ2
+program_id=RtcEaWSqDLej5FBWTkwGNraSEeb3zPGHmXg9FfVqNce
+required_devnet_sol=1.2
+network=solana-devnet
