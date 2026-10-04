@@ -1,0 +1,1 @@
+RF-DEV-0.9 is the MVP ownership simplification build. Canonical design: RF-DEV-0.9-MVP-OWNERSHIP.md.
