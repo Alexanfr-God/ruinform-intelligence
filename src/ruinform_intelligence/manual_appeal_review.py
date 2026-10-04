@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from typing import Literal
 
@@ -127,3 +128,30 @@ def _live_proof_status_with_review(object_id: str) -> str | None:
 
 
 economics_v2._live_proof_status = _live_proof_status_with_review
+
+
+def _apply_one_time_founder_review() -> None:
+    object_id = os.getenv("RUINFORM_BOOTSTRAP_APPROVE_APPEAL_OBJECT", "").strip()
+    if not object_id:
+        return
+    try:
+        resolve_appeal(
+            object_id,
+            ManualAppealDecision(
+                decision="APPROVE",
+                note=os.getenv(
+                    "RUINFORM_BOOTSTRAP_APPROVE_APPEAL_NOTE",
+                    "Founder approved this creator appeal after human review.",
+                ),
+                score=100,
+            ),
+            "RUINFORM_FOUNDER",
+        )
+    except HTTPException as exc:
+        # One-time startup action is intentionally idempotent.
+        if exc.status_code in {404, 409}:
+            return
+        raise
+
+
+_apply_one_time_founder_review()
