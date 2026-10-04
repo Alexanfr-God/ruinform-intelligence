@@ -111,6 +111,7 @@ pub fn process_instruction(program_id: &Pubkey, accounts: &[AccountInfo], data: 
         3 => settle(program_id, accounts),
         4 => seller_refund(program_id, accounts),
         5 => buyer_timeout_refund(program_id, accounts),
+        6 => seller_cancel_listing(program_id, accounts),
         _ => Err(EscrowError::InvalidInstruction.into()),
     }
 }
@@ -203,4 +204,12 @@ fn buyer_timeout_refund(program_id: &Pubkey, accounts: &[AccountInfo]) -> Progra
     if *buyer.key != sale.buyer || sale.status != STATUS_FUNDED { return Err(EscrowError::InvalidStatus.into()); }
     if Clock::get()?.unix_timestamp <= sale.expires_at { return Err(EscrowError::NotExpired.into()); }
     refund_to_buyer(state, buyer, &mut sale)
+}
+
+fn seller_cancel_listing(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let mut it = accounts.iter(); let seller = next_account_info(&mut it)?; let state = next_account_info(&mut it)?;
+    if state.owner != program_id || !seller.is_signer { return Err(EscrowError::Unauthorized.into()); }
+    let mut sale = SaleState::unpack(&state.try_borrow_data()?)?;
+    if *seller.key != sale.seller || sale.status != STATUS_LISTED { return Err(EscrowError::InvalidStatus.into()); }
+    sale.status = STATUS_CANCELLED; sale.pack(&mut state.try_borrow_mut_data()?)
 }
