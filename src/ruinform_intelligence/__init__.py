@@ -1,4 +1,4 @@
-__version__ = "0.2.5"
+__version__ = "0.2.6"
 
 # Keep the deployed immutable Devnet Sale V0 program and backend verifier aligned.
 # Imported at package load so every artifact-sales route reads the v2 chain state.
@@ -17,3 +17,8 @@ from . import artifact_sale_recovery as _artifact_sale_recovery  # noqa: F401,E4
 # Human moderation for creator verification appeals. The module adds protected
 # admin resolution routes to the existing verification-disputes router.
 from . import manual_appeal_review as _manual_appeal_review  # noqa: F401,E402
+
+# RF-DEV-0.9 makes Artifact Passport ownership the MVP core. Marketplace/escrow
+# stays preserved as future functionality; ownership routes are registered here
+# without changing the legacy Sale implementation.
+from . import ownership_bootstrap as _ownership_bootstrap  # noqa: F401,E402
