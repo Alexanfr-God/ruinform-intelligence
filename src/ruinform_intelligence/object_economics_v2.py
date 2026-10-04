@@ -89,7 +89,15 @@ def _live_proof_status(object_id: str) -> str | None:
         if not path.exists():
             return None
         with sqlite3.connect(path) as conn:
-            row = conn.execute("SELECT payload_json FROM ruinform_objects WHERE object_id=?", (backend_id,)).fetchone()
+            try:
+                row = conn.execute("SELECT payload_json FROM ruinform_objects WHERE object_id=?", (backend_id,)).fetchone()
+            except sqlite3.OperationalError as exc:
+                # Economics tables can exist before the Object Passport store has
+                # initialized its own table. In that state there is simply no
+                # durable live proof yet; it must not become a server error.
+                if "no such table" in str(exc).lower():
+                    return None
+                raise
     if not row:
         return None
     try:
