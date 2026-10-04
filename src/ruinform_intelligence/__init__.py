@@ -1,4 +1,4 @@
-__version__ = "0.2.6"
+__version__ = "0.2.7"
 
 # Keep the deployed immutable Devnet Sale V0 program and backend verifier aligned.
 # Imported at package load so every artifact-sales route reads the v2 chain state.
@@ -22,3 +22,7 @@ from . import manual_appeal_review as _manual_appeal_review  # noqa: F401,E402
 # stays preserved as future functionality; ownership routes are registered here
 # without changing the legacy Sale implementation.
 from . import ownership_bootstrap as _ownership_bootstrap  # noqa: F401,E402
+
+# RF-ID-1.0 links a verified Soulbound RUINFORM ID into the immutable snapshot
+# and public metadata of every future Artifact Passport minted by that wallet.
+from . import identity_provenance_patch as _identity_provenance_patch  # noqa: F401,E402
