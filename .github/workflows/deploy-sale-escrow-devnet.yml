@@ -1,0 +1,93 @@
+name: Deploy RUINFORM Sale Escrow / Devnet
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'programs/ruinform-sale-escrow/**'
+      - '.github/workflows/deploy-sale-escrow-devnet.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Solana toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -c "$(curl -sSfL https://release.anza.xyz/v4.3.0/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Build escrow program
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          cd programs/ruinform-sale-escrow
+          cargo build-sbf
+          ls -lh target/deploy/ruinform_sale_escrow.so
+
+      - name: Create one-time Devnet deployer
+        id: wallet
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          solana-keygen new --no-bip39-passphrase --silent --outfile /tmp/ruinform-devnet-deployer.json
+          DEPLOYER=$(solana-keygen pubkey /tmp/ruinform-devnet-deployer.json)
+          PROGRAM=$(solana-keygen pubkey programs/ruinform-sale-escrow/target/deploy/ruinform_sale_escrow-keypair.json)
+          echo "deployer=$DEPLOYER" >> "$GITHUB_OUTPUT"
+          echo "program=$PROGRAM" >> "$GITHUB_OUTPUT"
+          echo "RUINFORM_DEVNET_DEPLOYER=$DEPLOYER"
+          echo "RUINFORM_SALE_PROGRAM_ID=$PROGRAM"
+          echo "Send 1.2 DEVNET SOL to the deployer above. This job will wait up to 75 minutes."
+
+      - name: Wait for Devnet funding
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          DEPLOYER='${{ steps.wallet.outputs.deployer }}'
+          for i in $(seq 1 225); do
+            LAMPORTS=$(solana balance "$DEPLOYER" --url devnet --lamports 2>/dev/null | tr -dc '0-9' || true)
+            LAMPORTS=${LAMPORTS:-0}
+            echo "Funding check $i/225: $LAMPORTS lamports"
+            if [ "$LAMPORTS" -ge 1150000000 ]; then
+              echo "Funding confirmed."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Timed out waiting for 1.15+ Devnet SOL" >&2
+          exit 1
+
+      - name: Deploy immutable Devnet program
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          cd programs/ruinform-sale-escrow
+          solana program deploy \
+            --url devnet \
+            --keypair /tmp/ruinform-devnet-deployer.json \
+            --program-id target/deploy/ruinform_sale_escrow-keypair.json \
+            --final \
+            target/deploy/ruinform_sale_escrow.so
+          PROGRAM=$(solana-keygen pubkey target/deploy/ruinform_sale_escrow-keypair.json)
+          echo "program=$PROGRAM" >> "$GITHUB_OUTPUT"
+          solana program show "$PROGRAM" --url devnet
+          echo "DEVNET_PROGRAM=$PROGRAM"
+          echo "EXPLORER=https://explorer.solana.com/address/$PROGRAM?cluster=devnet"
+
+      - name: Upload build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruinform-sale-escrow-devnet-build
+          path: |
+            programs/ruinform-sale-escrow/target/deploy/ruinform_sale_escrow.so
+          retention-days: 30
