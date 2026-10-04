@@ -1,0 +1,1 @@
+MVP scope intentionally excludes escrow UX and marketplace sale orchestration. Those remain future modules and must not block the core Artifact Passport ownership lifecycle.
