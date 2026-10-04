@@ -8,3 +8,7 @@ from . import artifact_sales_v2_patch as _artifact_sales_v2_patch  # noqa: F401,
 # Sale step in DEVNET LAB only. RF-DEV-0.8 additionally persists an auditable
 # per-sale fee ledger. Mainnet remains gated and unchanged.
 from . import artifact_sales_fee_v2_patch as _artifact_sales_fee_v2_patch  # noqa: F401,E402
+
+# Human moderation for creator verification appeals. The module adds protected
+# admin resolution routes to the existing verification-disputes router.
+from . import manual_appeal_review as _manual_appeal_review  # noqa: F401,E402
