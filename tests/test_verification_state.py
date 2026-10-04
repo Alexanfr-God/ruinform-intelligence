@@ -12,6 +12,8 @@ def _result(
     challenge_confidence: int = 95,
 ):
     return VerificationOutput(
+        proof_status="valid",
+        object_match_evaluated=True,
         overall_match=overall,
         silhouette_match=overall,
         material_match=overall,
