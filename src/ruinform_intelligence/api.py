@@ -21,6 +21,7 @@ from . import nft_schema_patch as _nft_schema_patch  # noqa: F401
 from . import passport_provenance_patch as _passport_provenance_patch  # noqa: F401
 from .nft_public import router as nft_public_router
 from .object_economics_v3 import router as object_economics_router
+from .object_transfers import router as object_transfers_router
 from .release_channels import router as release_channels_router
 from .verification_api import router as verification_router
 from .verification_checkpoint import router as verification_checkpoint_router
@@ -131,7 +132,7 @@ async def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "ruinform-intelligence",
-        "build": "RFM-INT-0037",
+        "build": "RFM-INT-0038",
         "storage": storage,
     }
 
@@ -145,6 +146,7 @@ async def material_eye_analyze(payload: MaterialEyeRequest) -> MaterialEyeRespon
         )
 
     try:
+        state = ProjectState()
         state, summary = await analyze_materials(
             image_urls=[str(url) for url in payload.image_urls],
             user_context=payload.user_context,
@@ -175,3 +177,4 @@ app.include_router(nft_reconciliation_router)
 app.include_router(nft_reconcile_system_router)
 app.include_router(nft_public_router)
 app.include_router(release_channels_router)
+app.include_router(object_transfers_router)
