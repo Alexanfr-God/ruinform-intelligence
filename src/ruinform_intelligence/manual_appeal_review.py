@@ -117,7 +117,9 @@ _original_live_proof_status = economics_v2._live_proof_status
 def _live_proof_status_with_review(object_id: str) -> str | None:
     try:
         object_payload = disputes._verification_snapshot(disputes._backend_object_id(object_id))
-    except HTTPException:
+    except (HTTPException, sqlite3.OperationalError):
+        # A fresh/local economics database may exist before the Passport table is
+        # created. In that case there is simply no human-review proof to apply.
         return _original_live_proof_status(object_id)
     if (
         object_payload.get("verification_human_approved") is True
