@@ -1,0 +1,8 @@
+- [ ] Phantom active-account switching without disconnect
+- [ ] Direct Artifact Passport transfer as the only MVP ownership action
+- [ ] External wallet transfer detection
+- [ ] Append-only ownership history
+- [ ] Hide sale/escrow from default MVP Passport UI
+- [ ] Keep sale/escrow code preserved for future marketplace
+- [ ] Preserve 5% resale royalty for future RUINFORM Marketplace settlement
+- [ ] Mainnet remains manually gated
