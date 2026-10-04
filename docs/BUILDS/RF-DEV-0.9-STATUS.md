@@ -1,0 +1,1 @@
+RF-DEV-0.9 status: architecture frozen. Implementation targets: wallet account switching, direct Passport transfer, external transfer reconciliation, ownership history, sale/escrow hidden from MVP default flow.
