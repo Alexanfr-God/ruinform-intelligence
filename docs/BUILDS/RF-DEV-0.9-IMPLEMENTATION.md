@@ -1,0 +1,1 @@
+Implementation will preserve existing Devnet Sale code behind a future/experimental boundary while simplifying the MVP Passport experience to mint, owner, direct transfer, and provenance reconciliation.
