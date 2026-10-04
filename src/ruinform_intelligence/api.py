@@ -24,6 +24,7 @@ from .object_economics_v3 import router as object_economics_router
 from .object_transfers import router as object_transfers_router
 from .release_channels import router as release_channels_router
 from .artifact_standard_v1 import router as artifact_standard_router
+from .artifact_sales import router as artifact_sales_router
 from .verification_api import router as verification_router
 from .verification_checkpoint import router as verification_checkpoint_router
 from .verification_disputes import router as verification_disputes_router
@@ -133,7 +134,7 @@ async def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "ruinform-intelligence",
-        "build": "RFM-INT-0039",
+        "build": "RFM-INT-0040",
         "storage": storage,
     }
 
@@ -180,3 +181,4 @@ app.include_router(nft_public_router)
 app.include_router(release_channels_router)
 app.include_router(object_transfers_router)
 app.include_router(artifact_standard_router)
+app.include_router(artifact_sales_router)
