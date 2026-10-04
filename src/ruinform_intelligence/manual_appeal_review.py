@@ -135,7 +135,7 @@ def _apply_one_time_founder_review() -> None:
     if not object_id:
         return
     try:
-        resolve_appeal(
+        result = resolve_appeal(
             object_id,
             ManualAppealDecision(
                 decision="APPROVE",
@@ -148,10 +148,13 @@ def _apply_one_time_founder_review() -> None:
             "RUINFORM_FOUNDER",
         )
     except HTTPException as exc:
-        # One-time startup action is intentionally idempotent.
-        if exc.status_code in {404, 409}:
-            return
-        raise
+        if exc.status_code not in {404, 409}:
+            raise
+        result = disputes.read_verification_dispute(object_id)
+    print(
+        "RUINFORM_HUMAN_REVIEW_BOOTSTRAP "
+        f"object={result.object_id} status={result.status} dispute_id={result.dispute_id}"
+    )
 
 
 _apply_one_time_founder_review()
