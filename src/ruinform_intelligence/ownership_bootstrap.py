@@ -2,5 +2,6 @@
 
 from .api import app
 from .ownership_core import router
+from . import ownership_wallets as _ownership_wallets  # noqa: F401,E402
 
 app.include_router(router)
