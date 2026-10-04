@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/v1/release-channels", tags=["release-channels"])
 
-DEVNET_RELEASE = "RF-DEV-0.3"
+DEVNET_RELEASE = "RF-DEV-0.4"
 MAINNET_RELEASE = "RF-MAINNET-0.1"
 
 # New mechanics land in DEVNET first. MAINNET capability changes are intentionally
@@ -22,6 +22,7 @@ DEVNET_CAPABILITIES = [
     "metadata-editor",
     "canonical-nft",
     "ownership",
+    "transfer",
 ]
 MAINNET_CAPABILITIES = [
     "object-passport",
