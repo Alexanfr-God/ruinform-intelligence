@@ -1,0 +1,1 @@
+Ownership events are append-only provenance facts. External wallet transfers must be detected from Solana and recorded without inferring a sale or physical handoff. This note supports the RF-DEV-0.9 MVP ownership core.
