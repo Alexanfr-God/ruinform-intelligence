@@ -12,6 +12,7 @@ async def require_api_access(request: Request) -> None:
         path.startswith("/object/")
         or path.startswith("/v1/objects/")
         or path.startswith("/public/nft-passport/")
+        or path.startswith("/public/artifact-passport/")
     )
     if (
         path == "/health"
