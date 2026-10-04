@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/v1/release-channels", tags=["release-channels"])
 
-DEVNET_RELEASE = "RF-DEV-0.4"
+DEVNET_RELEASE = "RF-DEV-0.6"
 MAINNET_RELEASE = "RF-MAINNET-0.1"
 
 # New mechanics land in DEVNET first. MAINNET capability changes are intentionally
@@ -23,6 +23,9 @@ DEVNET_CAPABILITIES = [
     "canonical-nft",
     "ownership",
     "transfer",
+    "artifact-standard-v1",
+    "fees-v1",
+    "sale-v0",
 ]
 MAINNET_CAPABILITIES = [
     "object-passport",
@@ -91,7 +94,6 @@ def _ensure_network_registry() -> None:
                     )
                     """
                 )
-                # Mirror existing live Devnet records into the network registry.
                 cur.execute(
                     """
                     INSERT INTO ruinform_network_nft_passports(
@@ -136,9 +138,6 @@ def _ensure_network_registry() -> None:
             )
             """
         )
-        # Older local DBs may not have every optional Devnet column. The network
-        # registry itself is still prepared; live mirroring will happen once the
-        # Devnet schema has those columns.
         try:
             conn.execute(
                 """
