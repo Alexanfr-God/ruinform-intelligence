@@ -1,0 +1,1 @@
+See RF-DEV-0.9-MVP-OWNERSHIP.md for the canonical architecture decision.
