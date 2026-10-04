@@ -8,6 +8,9 @@ on:
       - 'programs/ruinform-sale-escrow/**'
       - '.github/workflows/deploy-sale-escrow-devnet.yml'
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -42,9 +45,25 @@ jobs:
           PROGRAM=$(solana-keygen pubkey programs/ruinform-sale-escrow/target/deploy/ruinform_sale_escrow-keypair.json)
           echo "deployer=$DEPLOYER" >> "$GITHUB_OUTPUT"
           echo "program=$PROGRAM" >> "$GITHUB_OUTPUT"
-          echo "RUINFORM_DEVNET_DEPLOYER=$DEPLOYER"
-          echo "RUINFORM_SALE_PROGRAM_ID=$PROGRAM"
-          echo "Send 1.2 DEVNET SOL to the deployer above. This job will wait up to 75 minutes."
+
+      - name: Publish funding address to repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deploy-status
+          cat > deploy-status/devnet-sale-current.txt <<EOF
+          status=WAITING_FOR_FUNDING
+          run_id=${GITHUB_RUN_ID}
+          deployer=${{ steps.wallet.outputs.deployer }}
+          program_id=${{ steps.wallet.outputs.program }}
+          required_devnet_sol=1.2
+          network=solana-devnet
+          EOF
+          git config user.name "ruinform-devnet-bot"
+          git config user.email "ruinform-devnet-bot@users.noreply.github.com"
+          git add deploy-status/devnet-sale-current.txt
+          git commit -m "Record Devnet sale deploy funding address"
+          git push
 
       - name: Wait for Devnet funding
         shell: bash
@@ -81,13 +100,29 @@ jobs:
           PROGRAM=$(solana-keygen pubkey target/deploy/ruinform_sale_escrow-keypair.json)
           echo "program=$PROGRAM" >> "$GITHUB_OUTPUT"
           solana program show "$PROGRAM" --url devnet
-          echo "DEVNET_PROGRAM=$PROGRAM"
-          echo "EXPLORER=https://explorer.solana.com/address/$PROGRAM?cluster=devnet"
+
+      - name: Record deployed program
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > deploy-status/devnet-sale-current.txt <<EOF
+          status=DEPLOYED
+          run_id=${GITHUB_RUN_ID}
+          program_id=${{ steps.wallet.outputs.program }}
+          network=solana-devnet
+          explorer=https://explorer.solana.com/address/${{ steps.wallet.outputs.program }}?cluster=devnet
+          EOF
+          git pull --rebase
+          git add deploy-status/devnet-sale-current.txt
+          git commit -m "Record deployed Devnet sale escrow" || true
+          git push
 
       - name: Upload build evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ruinform-sale-escrow-devnet-build
+          name: ruinform-sale-escrow-devnet-build-${{ github.run_id }}
           path: |
             programs/ruinform-sale-escrow/target/deploy/ruinform_sale_escrow.so
           retention-days: 30
