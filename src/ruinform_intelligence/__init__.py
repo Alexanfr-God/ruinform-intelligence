@@ -9,6 +9,11 @@ from . import artifact_sales_v2_patch as _artifact_sales_v2_patch  # noqa: F401,
 # per-sale fee ledger. Mainnet remains gated and unchanged.
 from . import artifact_sales_fee_v2_patch as _artifact_sales_fee_v2_patch  # noqa: F401,E402
 
+# Recover a LIST transaction that succeeded on Solana but was not registered in
+# RUINFORM because the HTTP/backend step failed afterwards. Recovery verifies
+# the deployed escrow state and the already-paid RF-FEES-v2 listing fee.
+from . import artifact_sale_recovery as _artifact_sale_recovery  # noqa: F401,E402
+
 # Human moderation for creator verification appeals. The module adds protected
 # admin resolution routes to the existing verification-disputes router.
 from . import manual_appeal_review as _manual_appeal_review  # noqa: F401,E402
