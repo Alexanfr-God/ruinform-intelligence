@@ -16,13 +16,16 @@ use solana_system_interface::{instruction as system_instruction, program as syst
 entrypoint!(process_instruction);
 
 const MAGIC: &[u8; 8] = b"RUFSALE1";
-const VERSION: u8 = 1;
+const VERSION: u8 = 2;
 const STATUS_LISTED: u8 = 1;
 const STATUS_FUNDED: u8 = 2;
-const STATUS_RECEIPT_CONFIRMED: u8 = 3;
-const STATUS_SETTLED: u8 = 4;
-const STATUS_CANCELLED: u8 = 5;
-const SALE_TTL_SECONDS: i64 = 14 * 24 * 60 * 60;
+const STATUS_SHIPPED: u8 = 3;
+const STATUS_RECEIPT_CONFIRMED: u8 = 4;
+const STATUS_SETTLED: u8 = 5;
+const STATUS_CANCELLED: u8 = 6;
+const LISTING_TTL_SECONDS: i64 = 14 * 24 * 60 * 60;
+const SHIP_TTL_SECONDS: i64 = 3 * 24 * 60 * 60;
+const REVIEW_AFTER_SHIP_SECONDS: i64 = 21 * 24 * 60 * 60;
 const RUINFORM_BPS: u64 = 500;
 const BPS_DENOM: u64 = 10_000;
 const STATE_LEN: usize = 208;
@@ -107,11 +110,12 @@ pub fn process_instruction(program_id: &Pubkey, accounts: &[AccountInfo], data: 
     match tag {
         0 => initialize(program_id, accounts, data),
         1 => fund(program_id, accounts),
-        2 => confirm_receipt(program_id, accounts),
-        3 => settle(program_id, accounts),
-        4 => seller_refund(program_id, accounts),
-        5 => buyer_timeout_refund(program_id, accounts),
-        6 => seller_cancel_listing(program_id, accounts),
+        2 => mark_shipped(program_id, accounts),
+        3 => confirm_receipt(program_id, accounts),
+        4 => settle(program_id, accounts),
+        5 => seller_refund(program_id, accounts),
+        6 => buyer_timeout_refund(program_id, accounts),
+        7 => seller_cancel_listing(program_id, accounts),
         _ => Err(EscrowError::InvalidInstruction.into()),
     }
 }
@@ -137,7 +141,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pro
     let ix = system_instruction::create_account(seller.key, state.key, rent, STATE_LEN as u64, program_id);
     invoke_signed(&ix, &[seller.clone(), state.clone(), system_program.clone()], &[&[b"sale", asset.key.as_ref(), &nonce_bytes, &[bump]]])?;
     let now = Clock::get()?.unix_timestamp;
-    SaleState { bump, status: STATUS_LISTED, nonce, price, expires_at: now + SALE_TTL_SECONDS, seller: *seller.key, buyer: Pubkey::default(), asset: *asset.key, treasury: *treasury.key, object_hash }.pack(&mut state.try_borrow_mut_data()?)
+    SaleState { bump, status: STATUS_LISTED, nonce, price, expires_at: now + LISTING_TTL_SECONDS, seller: *seller.key, buyer: Pubkey::default(), asset: *asset.key, treasury: *treasury.key, object_hash }.pack(&mut state.try_borrow_mut_data()?)
 }
 
 fn fund(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
@@ -150,24 +154,46 @@ fn fund(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let mut sale = SaleState::unpack(&state.try_borrow_data()?)?;
     if sale.status != STATUS_LISTED { return Err(EscrowError::InvalidStatus.into()); }
     if *buyer.key == sale.seller { return Err(EscrowError::InvalidAccount.into()); }
-    if Clock::get()?.unix_timestamp > sale.expires_at { return Err(EscrowError::Expired.into()); }
+    let now = Clock::get()?.unix_timestamp;
+    if now > sale.expires_at { return Err(EscrowError::Expired.into()); }
     let ix = system_instruction::transfer(buyer.key, state.key, sale.price);
     solana_program::program::invoke(&ix, &[buyer.clone(), state.clone(), system_program.clone()])?;
-    sale.buyer = *buyer.key; sale.status = STATUS_FUNDED;
+    sale.buyer = *buyer.key;
+    sale.status = STATUS_FUNDED;
+    sale.expires_at = now + SHIP_TTL_SECONDS;
+    sale.pack(&mut state.try_borrow_mut_data()?)
+}
+
+fn mark_shipped(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let mut it = accounts.iter();
+    let seller = next_account_info(&mut it)?;
+    let state = next_account_info(&mut it)?;
+    if state.owner != program_id || !seller.is_signer || !state.is_writable { return Err(EscrowError::Unauthorized.into()); }
+    let mut sale = SaleState::unpack(&state.try_borrow_data()?)?;
+    if *seller.key != sale.seller || sale.status != STATUS_FUNDED { return Err(EscrowError::InvalidStatus.into()); }
+    let now = Clock::get()?.unix_timestamp;
+    if now > sale.expires_at { return Err(EscrowError::Expired.into()); }
+    sale.status = STATUS_SHIPPED;
+    sale.expires_at = now + REVIEW_AFTER_SHIP_SECONDS;
     sale.pack(&mut state.try_borrow_mut_data()?)
 }
 
 fn confirm_receipt(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
-    let mut it = accounts.iter(); let buyer = next_account_info(&mut it)?; let state = next_account_info(&mut it)?;
-    if state.owner != program_id || !buyer.is_signer || *buyer.key != SaleState::unpack(&state.try_borrow_data()?)?.buyer { return Err(EscrowError::Unauthorized.into()); }
+    let mut it = accounts.iter();
+    let buyer = next_account_info(&mut it)?;
+    let state = next_account_info(&mut it)?;
+    if state.owner != program_id || !buyer.is_signer || !state.is_writable { return Err(EscrowError::Unauthorized.into()); }
     let mut sale = SaleState::unpack(&state.try_borrow_data()?)?;
-    if sale.status != STATUS_FUNDED { return Err(EscrowError::InvalidStatus.into()); }
-    sale.status = STATUS_RECEIPT_CONFIRMED; sale.pack(&mut state.try_borrow_mut_data()?)
+    if *buyer.key != sale.buyer || sale.status != STATUS_SHIPPED { return Err(EscrowError::InvalidStatus.into()); }
+    sale.status = STATUS_RECEIPT_CONFIRMED;
+    sale.pack(&mut state.try_borrow_mut_data()?)
 }
 
 fn settle(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let mut it = accounts.iter();
-    let seller = next_account_info(&mut it)?; let state = next_account_info(&mut it)?; let treasury = next_account_info(&mut it)?;
+    let seller = next_account_info(&mut it)?;
+    let state = next_account_info(&mut it)?;
+    let treasury = next_account_info(&mut it)?;
     if state.owner != program_id || !seller.is_signer || !seller.is_writable || !state.is_writable || !treasury.is_writable { return Err(EscrowError::Unauthorized.into()); }
     let mut sale = SaleState::unpack(&state.try_borrow_data()?)?;
     if sale.status != STATUS_RECEIPT_CONFIRMED { return Err(EscrowError::InvalidStatus.into()); }
@@ -178,7 +204,8 @@ fn settle(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     **state.try_borrow_mut_lamports()? = state.lamports().checked_sub(sale.price).ok_or(EscrowError::InsufficientEscrow)?;
     **seller.try_borrow_mut_lamports()? = seller.lamports().checked_add(seller_amount).ok_or(EscrowError::InvalidPrice)?;
     **treasury.try_borrow_mut_lamports()? = treasury.lamports().checked_add(fee).ok_or(EscrowError::InvalidPrice)?;
-    sale.status = STATUS_SETTLED; sale.pack(&mut state.try_borrow_mut_data()?)
+    sale.status = STATUS_SETTLED;
+    sale.pack(&mut state.try_borrow_mut_data()?)
 }
 
 fn refund_to_buyer(state: &AccountInfo, buyer: &AccountInfo, sale: &mut SaleState) -> ProgramResult {
@@ -186,19 +213,25 @@ fn refund_to_buyer(state: &AccountInfo, buyer: &AccountInfo, sale: &mut SaleStat
     if state.lamports() < sale.price { return Err(EscrowError::InsufficientEscrow.into()); }
     **state.try_borrow_mut_lamports()? = state.lamports().checked_sub(sale.price).ok_or(EscrowError::InsufficientEscrow)?;
     **buyer.try_borrow_mut_lamports()? = buyer.lamports().checked_add(sale.price).ok_or(EscrowError::InvalidPrice)?;
-    sale.status = STATUS_CANCELLED; sale.pack(&mut state.try_borrow_mut_data()?)
+    sale.status = STATUS_CANCELLED;
+    sale.pack(&mut state.try_borrow_mut_data()?)
 }
 
 fn seller_refund(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
-    let mut it = accounts.iter(); let seller = next_account_info(&mut it)?; let state = next_account_info(&mut it)?; let buyer = next_account_info(&mut it)?;
+    let mut it = accounts.iter();
+    let seller = next_account_info(&mut it)?;
+    let state = next_account_info(&mut it)?;
+    let buyer = next_account_info(&mut it)?;
     if state.owner != program_id || !seller.is_signer { return Err(EscrowError::Unauthorized.into()); }
     let mut sale = SaleState::unpack(&state.try_borrow_data()?)?;
-    if *seller.key != sale.seller || sale.status != STATUS_FUNDED { return Err(EscrowError::InvalidStatus.into()); }
+    if *seller.key != sale.seller || !matches!(sale.status, STATUS_FUNDED | STATUS_SHIPPED) { return Err(EscrowError::InvalidStatus.into()); }
     refund_to_buyer(state, buyer, &mut sale)
 }
 
 fn buyer_timeout_refund(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
-    let mut it = accounts.iter(); let buyer = next_account_info(&mut it)?; let state = next_account_info(&mut it)?;
+    let mut it = accounts.iter();
+    let buyer = next_account_info(&mut it)?;
+    let state = next_account_info(&mut it)?;
     if state.owner != program_id || !buyer.is_signer { return Err(EscrowError::Unauthorized.into()); }
     let mut sale = SaleState::unpack(&state.try_borrow_data()?)?;
     if *buyer.key != sale.buyer || sale.status != STATUS_FUNDED { return Err(EscrowError::InvalidStatus.into()); }
@@ -207,9 +240,12 @@ fn buyer_timeout_refund(program_id: &Pubkey, accounts: &[AccountInfo]) -> Progra
 }
 
 fn seller_cancel_listing(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
-    let mut it = accounts.iter(); let seller = next_account_info(&mut it)?; let state = next_account_info(&mut it)?;
-    if state.owner != program_id || !seller.is_signer { return Err(EscrowError::Unauthorized.into()); }
+    let mut it = accounts.iter();
+    let seller = next_account_info(&mut it)?;
+    let state = next_account_info(&mut it)?;
+    if state.owner != program_id || !seller.is_signer || !state.is_writable { return Err(EscrowError::Unauthorized.into()); }
     let mut sale = SaleState::unpack(&state.try_borrow_data()?)?;
     if *seller.key != sale.seller || sale.status != STATUS_LISTED { return Err(EscrowError::InvalidStatus.into()); }
-    sale.status = STATUS_CANCELLED; sale.pack(&mut state.try_borrow_mut_data()?)
+    sale.status = STATUS_CANCELLED;
+    sale.pack(&mut state.try_borrow_mut_data()?)
 }
