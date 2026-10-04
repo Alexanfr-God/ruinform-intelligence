@@ -31,7 +31,7 @@ def _wallet_rows(wallet_address: str) -> list[tuple]:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT object_id, asset_address, owner_wallet, minted_at_iso
+                    SELECT object_id, mint_address, owner_wallet, minted_at_iso
                     FROM ruinform_nft_passports
                     WHERE owner_wallet=%s
                       AND status='MINTED'
@@ -46,7 +46,7 @@ def _wallet_rows(wallet_address: str) -> list[tuple]:
             return list(
                 conn.execute(
                     """
-                    SELECT object_id, asset_address, owner_wallet, minted_at_iso
+                    SELECT object_id, mint_address, owner_wallet, minted_at_iso
                     FROM ruinform_nft_passports
                     WHERE owner_wallet=? AND status='MINTED'
                     ORDER BY minted_at_iso DESC, object_id DESC
@@ -69,5 +69,6 @@ async def wallet_owned_artifacts(wallet_address: str) -> OwnedArtifactsResponse:
             minted_at_iso=str(row[3]) if row[3] else None,
         )
         for row in _wallet_rows(wallet)
+        if row[1]
     ]
     return OwnedArtifactsResponse(wallet_address=wallet, items=items)
