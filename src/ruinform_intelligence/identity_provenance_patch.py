@@ -49,11 +49,13 @@ def _creator_identity(wallet: str) -> dict | None:
         "asset_address": asset_address,
         "record_hash": record_hash,
         "creator_name": str(payload.get("creatorName") or ""),
+        "role": str(payload.get("role") or "CREATOR"),
         "origin": str(payload.get("origin") or ""),
         "discipline": str(payload.get("discipline") or ""),
         "artifact_style": str(payload.get("artifactStyle") or ""),
-        "issued_at": str(payload.get("issuedAt") or ""),
-        "identity_standard": "RF-ID-v1",
+        "issued_at": str(payload.get("mintedAt") or payload.get("issuedAt") or ""),
+        "identity_standard": str(payload.get("templateVersion") or "RF-ID-v1.3"),
+        "public_url": f"https://ruinform.higgsfield.app/passport?id={ruinform_id}",
         "soulbound": True,
     }
 
@@ -81,6 +83,8 @@ def _metadata_with_identity(object_id: str, snapshot_hash: str) -> dict:
     known = {str(row.get("trait_type")) for row in attributes if isinstance(row, dict)}
     for trait_type, value in (
         ("Creator RUINFORM ID", identity.get("ruinform_id")),
+        ("Creator Name", identity.get("creator_name")),
+        ("Creator Role", identity.get("role")),
         ("Creator Identity Asset", identity.get("asset_address")),
         ("Creator Identity Record", identity.get("record_hash")),
         ("Creator Identity Standard", identity.get("identity_standard")),
