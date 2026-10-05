@@ -1,4 +1,4 @@
-__version__ = "0.2.7"
+__version__ = "0.2.8"
 
 # Keep the deployed immutable Devnet Sale V0 program and backend verifier aligned.
 # Imported at package load so every artifact-sales route reads the v2 chain state.
@@ -26,3 +26,7 @@ from . import ownership_bootstrap as _ownership_bootstrap  # noqa: F401,E402
 # RF-ID-1.0 links a verified Soulbound RUINFORM ID into the immutable snapshot
 # and public metadata of every future Artifact Passport minted by that wallet.
 from . import identity_provenance_patch as _identity_provenance_patch  # noqa: F401,E402
+
+# RF-NFT-MEDIA-v1 seals marketplace-safe raster media into every future Artifact
+# Passport snapshot. PNG is the primary marketplace image; SVG remains secondary.
+from . import nft_media_contract as _nft_media_contract  # noqa: F401,E402
