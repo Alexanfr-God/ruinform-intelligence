@@ -126,15 +126,16 @@ async def render_session_candidate(
             update={"stage": "rendering", "selected_candidate_id": candidate_id}
         )
     )
+    source_state = session.project_state
     render_state = externalize_state_for_render(
-        session.project_state,
+        source_state,
         session_id=session.session_id,
     )
 
     # Render controls are intentionally request-scoped. They guide this image only and do not
     # rewrite the durable project state, selected Future, or immutable semantic contract.
     clean_user_prompt = (user_prompt or "").strip()[:1200]
-    existing_direction = (render_state.creative_intent.direction or "").strip()
+    existing_direction = (source_state.creative_intent.direction or "").strip()
     if clean_user_prompt:
         render_direction = (
             f"{existing_direction}\n\nRENDER-SPECIFIC USER NOTE: {clean_user_prompt}"
@@ -143,12 +144,18 @@ async def render_session_candidate(
         )
     else:
         render_direction = existing_direction or None
-    render_intent = render_state.creative_intent.model_copy(
+    render_intent = source_state.creative_intent.model_copy(
         update={
             "direction": render_direction,
             "background_mode": "ruinform_world" if presentation_mode == "post_apocalyptic" else "clean_studio",
         }
     )
+    # The Visual Director should receive the original in-session image evidence. Those
+    # browser uploads are stored as data URLs and can be sent directly as multimodal
+    # input, avoiding an unnecessary public URL fetch hop. The actual image renderer
+    # still receives externalized HTTPS references because alternate providers such as
+    # Higgsfield require fetchable URLs.
+    director_state = source_state.model_copy(update={"creative_intent": render_intent})
     render_state = render_state.model_copy(update={"creative_intent": render_intent})
 
     if concept_mode:
@@ -164,7 +171,7 @@ async def render_session_candidate(
         )
         try:
             direction = await generate_visual_direction(
-                state=render_state,
+                state=director_state,
                 future=future,
                 render_mode=render_mode,
             )
