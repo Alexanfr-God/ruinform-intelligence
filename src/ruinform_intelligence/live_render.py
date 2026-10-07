@@ -51,9 +51,22 @@ def _contract_repair_instructions(
         requirement = by_id.get(requirement_id)
         if requirement is None:
             continue
+        visual_hint = ""
+        requirement_text = requirement.text.casefold()
+        if "saddle strap" in requirement_text:
+            visual_hint = (
+                " Visually: show a simple U/omega-shaped pipe saddle strap arching over the OUTSIDE of the elbow/fitting, "
+                "with one fixing foot on each side screwed into the base; the fitting itself is not drilled. "
+                "Do not replace it with a side bracket, internal clamp, hidden glue, or fabricated cage."
+            )
+        elif "collar" in requirement_text:
+            visual_hint = (
+                " Visually: show the collar as a thin fitted sleeve/ring at the contact between the inserted part and the opening, "
+                "not as a large invented housing."
+            )
         instructions.append(
-            f"Repair [{requirement.requirement_id}]: make this existing contract requirement more visibly legible — {requirement.text}. "
-            "Do not add an exact count, new part, new topology, or stricter sequence that is not stated here."
+            f"Repair [{requirement.requirement_id}]: make this existing contract requirement more visibly legible — {requirement.text}."
+            f"{visual_hint} Do not add an exact count, new part, new topology, or stricter sequence that is not stated here."
         )
     if instructions:
         return instructions
