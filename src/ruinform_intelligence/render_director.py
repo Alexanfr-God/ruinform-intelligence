@@ -4,7 +4,7 @@ import json
 import os
 from typing import Literal
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAIError
 from pydantic import BaseModel, ConfigDict, Field
 
 from .future_models import ReviewedFuture
@@ -231,20 +231,28 @@ async def generate_visual_direction(
         if image_count >= 6:
             break
 
-    response = await client.responses.create(
-        model=model,
-        reasoning={"effort": "high"},
-        instructions=load_visual_director_prompt(),
-        input=[{"role": "user", "content": content}],
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": "ruinform_visual_direction",
-                "strict": True,
-                "schema": VisualDirection.model_json_schema(),
-            }
-        },
-    )
+    try:
+        response = await client.responses.create(
+            model=model,
+            reasoning={"effort": "high"},
+            instructions=load_visual_director_prompt(),
+            input=[{"role": "user", "content": content}],
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "ruinform_visual_direction",
+                    "strict": True,
+                    "schema": VisualDirection.model_json_schema(),
+                }
+            },
+        )
+    except OpenAIError as exc:
+        # The director is an enhancement, not a hard dependency for rendering. In
+        # particular, remote evidence URLs can occasionally be too slow for the model
+        # fetcher even when they are valid. Convert provider/API failures into a bounded
+        # director failure so live_render can fall back to a deterministic direction
+        # instead of aborting the user's entire render.
+        raise VisualDirectorError(f"Visual Director request failed: {exc}") from exc
 
     if not response.output_text:
         raise VisualDirectorError("Visual Director returned no direction")
