@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 
-from openai import AsyncOpenAI
+import httpx
+from openai import AsyncOpenAI, OpenAIError
 
 from .future_models import FutureSemanticContract, ReviewedFuture
 from .prompt_loader import load_prompt_file
@@ -28,6 +30,7 @@ async def evaluate_render(
     render: ProviderRender,
     client: AsyncOpenAI | None = None,
     model: str | None = None,
+    source_image_urls: list[str] | None = None,
 ) -> RenderCritique:
     if future.review.status == "reject":
         raise RenderReviewAgentError("Rejected futures may not be render-reviewed")
@@ -67,27 +70,57 @@ async def evaluate_render(
                 f"Current render request (implementation guidance, mutable across retries): {request.model_dump_json()}"
             ),
         },
-        {"type": "input_image", "image_url": str(render.image_url), "detail": "high"},
     ]
-    for reference in request.references[:8]:
-        content.append({"type": "input_image", "image_url": str(reference.image_url), "detail": "high"})
+
+    async def inline_image(value: str, downloader: httpx.AsyncClient) -> str:
+        if value.startswith("data:image/"):
+            return value
+        if not value.startswith("https://"):
+            raise RenderReviewAgentError("Unsupported render review image source")
+        try:
+            response = await downloader.get(value)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise RenderReviewAgentError(f"Could not load render review image: {exc}") from exc
+        media_type = (response.headers.get("content-type") or "image/jpeg").split(";", 1)[0]
+        return f"data:{media_type};base64,{base64.b64encode(response.content).decode('ascii')}"
+
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as downloader:
+        generated_image = await inline_image(str(render.image_url), downloader)
+        content.append({"type": "input_image", "image_url": generated_image, "detail": "high"})
+
+        reference_values = source_image_urls if source_image_urls is not None else [
+            str(reference.image_url) for reference in request.references[:8]
+        ]
+        for value in reference_values[:8]:
+            try:
+                image_value = await inline_image(value, downloader)
+            except RenderReviewAgentError:
+                # One unavailable source reference must not destroy an otherwise valid
+                # render. The immutable contract and remaining evidence still allow a
+                # conservative review; missing provenance will naturally lower fidelity.
+                continue
+            content.append({"type": "input_image", "image_url": image_value, "detail": "high"})
 
     model = model or os.getenv("RUINFORM_RENDER_CRITIC_MODEL", DEFAULT_MODEL)
     client = client or AsyncOpenAI()
-    response = await client.responses.create(
-        model=model,
-        reasoning={"effort": "high"},
-        instructions=load_prompt(),
-        input=[{"role": "user", "content": content}],
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": "ruinform_render_review",
-                "strict": True,
-                "schema": RenderCritique.model_json_schema(),
-            }
-        },
-    )
+    try:
+        response = await client.responses.create(
+            model=model,
+            reasoning={"effort": "high"},
+            instructions=load_prompt(),
+            input=[{"role": "user", "content": content}],
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "ruinform_render_review",
+                    "strict": True,
+                    "schema": RenderCritique.model_json_schema(),
+                }
+            },
+        )
+    except OpenAIError as exc:
+        raise RenderReviewAgentError(f"Render review request failed: {exc}") from exc
     if not response.output_text:
         raise RenderReviewAgentError("Render review returned no structured output")
     try:
