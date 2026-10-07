@@ -175,7 +175,7 @@ def _branch_parent_render_url(session) -> str:
         if evidence.evidence_id == _BRANCH_PARENT_EVIDENCE_ID and evidence.uri:
             return evidence.uri
     result = session.render_result
-    if result is not None and result.accepted_image_url:
+    if result is not None and result.status == "pass" and result.accepted_image_url:
         return result.accepted_image_url
     return ""
 
@@ -344,7 +344,13 @@ async def add_branch_evidence(
         locked_intent = source_session.project_state.creative_intent.model_copy(deep=True)
         parent_render_url = _branch_parent_render_url(source_session)
         if not parent_render_url:
-            raise ValueError("Archived parent render is unavailable for branch evolution")
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "The parent future has no accepted render. Complete or retry the parent render "
+                    "before adding new matter to this branch."
+                ),
+            )
 
         physical_state = _branch_physical_state(source_session)
         analysis_session = source_session.model_copy(
