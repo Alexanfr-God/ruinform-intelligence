@@ -223,6 +223,11 @@ async def render_session_candidate(
                     semantic_contract=semantic_contract,
                     request=request,
                     render=render,
+                    source_image_urls=[
+                        str(evidence.uri)
+                        for evidence in director_state.evidence
+                        if evidence.source_type == "image" and evidence.uri
+                    ],
                 )
             except (RenderProviderError, RenderReviewAgentError, ValueError) as exc:
                 raise RenderGatewayError(str(exc)) from exc
