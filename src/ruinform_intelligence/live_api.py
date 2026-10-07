@@ -82,7 +82,7 @@ class DiscoverRequest(BaseModel):
 
 class RenderRequestBody(BaseModel):
     aspect_ratio: str = Field(default="4:5", max_length=16)
-    max_attempts: int = Field(default=2, ge=1, le=2)
+    max_attempts: int = Field(default=3, ge=1, le=3)
     user_prompt: str | None = Field(default=None, max_length=1200)
     presentation_mode: Literal["standard", "post_apocalyptic"] = "post_apocalyptic"
 
