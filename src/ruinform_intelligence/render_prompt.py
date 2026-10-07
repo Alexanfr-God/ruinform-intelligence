@@ -66,6 +66,30 @@ def _background_render_instruction(state: ProjectState) -> str:
     )
 
 
+def _connection_visual_cues(operations: list[str]) -> str:
+    """Translate construction terms into geometry an image renderer can actually see.
+
+    The Future contract remains authoritative; these are visual explanations only.
+    """
+    joined = " ".join(operations).casefold()
+    cues: list[str] = []
+    if "saddle strap" in joined:
+        cues.append(
+            "SADDLE STRAP: show a simple U/omega-shaped pipe fixing strap visibly arching over the OUTSIDE of the elbow/fitting, "
+            "with one fixing foot on each side screwed into the base. The strap holds the fitting down without drilling through it. "
+            "Do NOT replace this with a side bracket, hidden glue, a clamp inside the opening, or a fabricated cage."
+        )
+    if "collar" in joined:
+        cues.append(
+            "COMPLIANT COLLAR: show a thin fitted sleeve/ring at the contact between inserted part and opening; it should read as a removable fit aid, not a thick invented housing."
+        )
+    if "clamp" in joined and "saddle strap" not in joined:
+        cues.append(
+            "CLAMP: make the clamp visibly wrap/grip the real source part and show where it reacts against the support; do not substitute an unrelated bracket."
+        )
+    return "\n".join(f"- {cue}" for cue in cues)
+
+
 def _difficulty_render_instruction(state: ProjectState) -> str:
     mode = state.creative_intent.difficulty_mode
     if mode == "easy":
@@ -155,6 +179,7 @@ def compile_preview_render_request(
         f"- OPERATION {index:02d}: {operation}"
         for index, operation in enumerate(candidate.key_operations, start=1)
     ) or "- Use simple physically legible assembly operations."
+    connection_visual_cues = _connection_visual_cues(candidate.key_operations)
     additions = "; ".join(candidate.added_materials) or "No significant added materials."
     unresolved = "; ".join(candidate.unresolved_dependencies) or "Ordinary scale-to-fit assumptions only."
     keep = "\n".join(f"- {item}" for item in direction.must_keep)
@@ -216,7 +241,9 @@ def compile_preview_render_request(
         f"{operation_contract}\n"
         "Every listed operation that has a visible physical consequence must be legible in the finished object. "
         "Especially preserve the specified attachment method: do not replace a strap, clamp, collar, fastener or non-invasive mount with an invented bracket, hidden glue, drilling, fusion, or unrelated hardware. "
-        "Styling and environment are subordinate to these construction cues.\n\n"
+        "Styling and environment are subordinate to these construction cues.\n"
+        + ("VISUAL JOIN TRANSLATION:\n" + connection_visual_cues + "\n" if connection_visual_cues else "")
+        + "\n"
         f"SILHOUETTE: {direction.silhouette}\n"
         f"NEGATIVE SPACE: {direction.negative_space}\n"
         f"COLOR STRATEGY: {direction.color_strategy}\n\n"
