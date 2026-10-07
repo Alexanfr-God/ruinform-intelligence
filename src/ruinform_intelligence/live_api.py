@@ -242,16 +242,27 @@ async def start_upload(
 async def read_session(session_id: str) -> TransformationSession:
     session = get_session(session_id)
     # A background task can fail while PostgreSQL is briefly unavailable, which can
-    # prevent the first FAILED write from landing. Keep that process-local failure and
-    # reconcile it on the next successful status read instead of leaving the browser in
-    # an endless "rendering" state.
-    if session.stage == "rendering" and session_id in _render_failures:
+    # prevent the first FAILED write from landing. Also, a deploy/restart destroys
+    # in-process asyncio tasks while their last durable stage can remain "rendering".
+    # Reconcile either case on the next successful status read so the browser never
+    # polls a render that no longer has a worker behind it.
+    active_render = _render_tasks.get(session_id)
+    render_worker_missing = session.stage == "rendering" and (
+        active_render is None or active_render.done()
+    )
+    if session.stage == "rendering" and (
+        session_id in _render_failures or render_worker_missing
+    ):
+        message = _render_failures.get(
+            session_id,
+            "Render worker is no longer active. Retry the selected future; evidence and concept are preserved.",
+        )
         try:
             session = store().save(
                 session.model_copy(
                     update={
                         "stage": "failed",
-                        "last_error": _render_failures[session_id],
+                        "last_error": message,
                         "last_error_stage": "render",
                     }
                 )
