@@ -27,6 +27,8 @@ logger = logging.getLogger("ruinform.live_api")
 _store: SqliteRunStore | None = None
 _future_tasks: dict[str, asyncio.Task[None]] = {}
 _render_tasks: dict[str, asyncio.Task[None]] = {}
+_future_failures: dict[str, str] = {}
+_render_failures: dict[str, str] = {}
 _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 _MAX_UPLOAD_FILES = 8
 _MAX_UPLOAD_BYTES = 8 * 1024 * 1024
@@ -106,9 +108,15 @@ async def _discover_futures_job(session_id: str, payload: DiscoverRequest) -> No
         logger.info("futures async:done session=%s", session_id)
     except Exception:  # background failures must become observable session state
         logger.exception("futures async:failed session=%s", session_id)
+        message = "Future discovery stopped before completion. Retry IMAGINE; your evidence is preserved."
+        _future_failures[session_id] = message
         try:
             current = get_session(session_id)
-            store().save(current.model_copy(update={"stage": "failed"}))
+            store().save(
+                current.model_copy(
+                    update={"stage": "failed", "last_error": message, "last_error_stage": "futures"}
+                )
+            )
         except Exception:
             logger.exception("futures async:could not persist failure session=%s", session_id)
     finally:
@@ -148,9 +156,15 @@ async def _render_candidate_job(
         logger.info("render async:done session=%s candidate=%s", session_id, candidate_id)
     except Exception:
         logger.exception("render async:failed session=%s candidate=%s", session_id, candidate_id)
+        message = "Render worker stopped before completion. Retry the selected future; evidence and concept are preserved."
+        _render_failures[session_id] = message
         try:
             current = get_session(session_id)
-            store().save(current.model_copy(update={"stage": "failed"}))
+            store().save(
+                current.model_copy(
+                    update={"stage": "failed", "last_error": message, "last_error_stage": "render"}
+                )
+            )
         except Exception:
             logger.exception("render async:could not persist failure session=%s", session_id)
     finally:
@@ -226,7 +240,25 @@ async def start_upload(
 
 @router.get("/{session_id}", response_model=TransformationSession)
 async def read_session(session_id: str) -> TransformationSession:
-    return get_session(session_id)
+    session = get_session(session_id)
+    # A background task can fail while PostgreSQL is briefly unavailable, which can
+    # prevent the first FAILED write from landing. Keep that process-local failure and
+    # reconcile it on the next successful status read instead of leaving the browser in
+    # an endless "rendering" state.
+    if session.stage == "rendering" and session_id in _render_failures:
+        try:
+            session = store().save(
+                session.model_copy(
+                    update={
+                        "stage": "failed",
+                        "last_error": _render_failures[session_id],
+                        "last_error_stage": "render",
+                    }
+                )
+            )
+        except Exception:
+            logger.exception("render status:could not reconcile failure session=%s", session_id)
+    return session
 
 
 @router.post("/{session_id}/evidence", response_model=TransformationSession)
@@ -257,7 +289,12 @@ async def discover_start(session_id: str, payload: DiscoverRequest) -> dict[str,
         return {"ok": True, "pending": True, "session_id": session_id, "stage": "futures_generating"}
 
     if session.stage == "failed":
-        session = store().save(session.model_copy(update={"stage": "ready_for_futures"}))
+        session = store().save(
+            session.model_copy(
+                update={"stage": "ready_for_futures", "last_error": None, "last_error_stage": None}
+            )
+        )
+    _future_failures.pop(session_id, None)
 
     task = asyncio.create_task(_discover_futures_job(session_id, payload))
     _future_tasks[session_id] = task
@@ -309,12 +346,15 @@ async def render_start(
     ):
         return {"ok": True, "pending": False, "session_id": session_id, "candidate_id": candidate_id, "stage": "completed"}
 
+    _render_failures.pop(session_id, None)
     session = store().save(
         session.model_copy(
             update={
                 "stage": "rendering",
                 "selected_candidate_id": candidate_id,
                 "render_result": None,
+                "last_error": None,
+                "last_error_stage": None,
             }
         )
     )
