@@ -151,6 +151,10 @@ def compile_preview_render_request(
             )
 
     operations = "; ".join(candidate.key_operations) or "Use simple physically legible assembly operations."
+    operation_contract = "\n".join(
+        f"- OPERATION {index:02d}: {operation}"
+        for index, operation in enumerate(candidate.key_operations, start=1)
+    ) or "- Use simple physically legible assembly operations."
     additions = "; ".join(candidate.added_materials) or "No significant added materials."
     unresolved = "; ".join(candidate.unresolved_dependencies) or "Ordinary scale-to-fit assumptions only."
     keep = "\n".join(f"- {item}" for item in direction.must_keep)
@@ -208,6 +212,11 @@ def compile_preview_render_request(
         + "\n\nSOURCE IMAGE FIDELITY:\n"
         + "\n".join(source_lines)
         + "\n\n"
+        "SELECTED FUTURE CONSTRUCTION CONTRACT — HIGH PRIORITY:\n"
+        f"{operation_contract}\n"
+        "Every listed operation that has a visible physical consequence must be legible in the finished object. "
+        "Especially preserve the specified attachment method: do not replace a strap, clamp, collar, fastener or non-invasive mount with an invented bracket, hidden glue, drilling, fusion, or unrelated hardware. "
+        "Styling and environment are subordinate to these construction cues.\n\n"
         f"SILHOUETTE: {direction.silhouette}\n"
         f"NEGATIVE SPACE: {direction.negative_space}\n"
         f"COLOR STRATEGY: {direction.color_strategy}\n\n"
