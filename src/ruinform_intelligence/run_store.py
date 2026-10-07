@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Protocol
@@ -161,62 +162,94 @@ class PostgresRunStore:
             import psycopg
         except ImportError as exc:  # pragma: no cover - packaging guard
             raise RuntimeError("psycopg is required for PostgresRunStore") from exc
-        return psycopg.connect(self.database_url)
+        return psycopg.connect(self.database_url, connect_timeout=5)
+
+    def _run_with_retry(self, operation, *, attempts: int = 3):
+        """Retry short-lived PostgreSQL transport failures with a fresh connection.
+
+        Every attempt opens a new connection. Session writes are UPSERTs, so replaying a
+        write after an EOF around commit is safe and prevents a transient SSL disconnect
+        from killing an otherwise healthy render/background job.
+        """
+        try:
+            import psycopg
+        except ImportError as exc:  # pragma: no cover - packaging guard
+            raise RuntimeError("psycopg is required for PostgresRunStore") from exc
+
+        for attempt in range(attempts):
+            try:
+                return operation()
+            except (psycopg.OperationalError, psycopg.InterfaceError):
+                if attempt + 1 >= attempts:
+                    raise
+                time.sleep(0.2 * (2 ** attempt))
 
     def _ensure_initialized(self) -> None:
         if self._initialized:
             return
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS transformation_sessions (
-                        session_id TEXT PRIMARY KEY,
-                        project_id TEXT NOT NULL,
-                        stage TEXT NOT NULL,
-                        payload_json TEXT NOT NULL,
-                        updated_at_iso TEXT NOT NULL
+
+        def initialize() -> None:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS transformation_sessions (
+                            session_id TEXT PRIMARY KEY,
+                            project_id TEXT NOT NULL,
+                            stage TEXT NOT NULL,
+                            payload_json TEXT NOT NULL,
+                            updated_at_iso TEXT NOT NULL
+                        )
+                        """
                     )
-                    """
-                )
-            conn.commit()
+                conn.commit()
+
+        self._run_with_retry(initialize)
         self._initialized = True
 
     def save(self, session: TransformationSession) -> TransformationSession:
         self._ensure_initialized()
         saved = session.model_copy(update={"updated_at_iso": utc_now_iso()})
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO transformation_sessions(session_id, project_id, stage, payload_json, updated_at_iso)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT(session_id) DO UPDATE SET
-                        project_id=EXCLUDED.project_id,
-                        stage=EXCLUDED.stage,
-                        payload_json=EXCLUDED.payload_json,
-                        updated_at_iso=EXCLUDED.updated_at_iso
-                    """,
-                    (
-                        saved.session_id,
-                        saved.project_id,
-                        saved.stage,
-                        saved.model_dump_json(),
-                        saved.updated_at_iso,
-                    ),
-                )
-            conn.commit()
+
+        def write() -> None:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO transformation_sessions(session_id, project_id, stage, payload_json, updated_at_iso)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT(session_id) DO UPDATE SET
+                            project_id=EXCLUDED.project_id,
+                            stage=EXCLUDED.stage,
+                            payload_json=EXCLUDED.payload_json,
+                            updated_at_iso=EXCLUDED.updated_at_iso
+                        """,
+                        (
+                            saved.session_id,
+                            saved.project_id,
+                            saved.stage,
+                            saved.model_dump_json(),
+                            saved.updated_at_iso,
+                        ),
+                    )
+                conn.commit()
+
+        self._run_with_retry(write)
         return saved
 
     def get(self, session_id: str) -> TransformationSession:
         self._ensure_initialized()
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT payload_json FROM transformation_sessions WHERE session_id = %s",
-                    (session_id,),
-                )
-                row = cur.fetchone()
+
+        def read():
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT payload_json FROM transformation_sessions WHERE session_id = %s",
+                        (session_id,),
+                    )
+                    return cur.fetchone()
+
+        row = self._run_with_retry(read)
         if row is None:
             raise SessionNotFound(session_id)
         return TransformationSession.model_validate_json(row[0])
