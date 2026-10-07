@@ -270,6 +270,24 @@ async def render_session_candidate(
                 render.provider_job_id,
             )
 
+            # Persist every completed render+critic attempt while the job is still alive.
+            # This makes progress observable to the browser and preserves the latest
+            # generated image if the process is restarted before the next repair pass.
+            session = store.save(
+                session.model_copy(
+                    update={
+                        "stage": "rendering",
+                        "render_result": RenderResult(
+                            candidate_id=future.candidate.candidate_id,
+                            status="failed",
+                            accepted_image_url=last_image_url,
+                            attempts=attempts,
+                            failure_reason="Quality review is still in progress.",
+                        ),
+                    }
+                )
+            )
+
             if review.status == "pass":
                 result = RenderResult(
                     candidate_id=future.candidate.candidate_id,
