@@ -18,7 +18,7 @@ from .visual_brief import generate_visual_brief
 
 
 logger = logging.getLogger("ruinform.live_render")
-_CONCEPT_RENDER_ATTEMPTS = 2
+_CONCEPT_RENDER_ATTEMPTS = 3
 
 
 def _repair_preview_request(request: RenderRequest, instructions: list[str]) -> RenderRequest:
