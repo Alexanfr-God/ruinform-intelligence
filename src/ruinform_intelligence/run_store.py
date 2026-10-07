@@ -28,6 +28,15 @@ SessionStage = Literal[
 ReasoningMode = Literal["verified", "concept"]
 
 
+class RenderJobState(BaseModel):
+    candidate_id: str
+    aspect_ratio: str = "4:5"
+    max_attempts: int = 3
+    user_prompt: str | None = None
+    presentation_mode: Literal["standard", "post_apocalyptic"] = "post_apocalyptic"
+    status: Literal["queued", "running", "completed", "failed"] = "queued"
+
+
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -43,6 +52,7 @@ class TransformationSession(BaseModel):
     futures: FutureFormsResult | None = None
     selected_candidate_id: str | None = None
     render_result: RenderResult | None = None
+    render_job: RenderJobState | None = None
     build_plan: BuildPlan | None = None
     build_review: BuildCriticReview | None = None
     build_revision_trace: BuildRevisionTrace | None = None
