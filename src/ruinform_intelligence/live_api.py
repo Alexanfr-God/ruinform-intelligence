@@ -20,7 +20,7 @@ from .models import EvidenceItem, ProjectConstraints
 from .provider_factory import create_higgsfield_provider
 from .render_gateway import RenderGatewayError
 from .render_provider import RenderProviderError
-from .run_store import SessionNotFound, SqliteRunStore, TransformationSession
+from .run_store import RenderJobState, SessionNotFound, SqliteRunStore, TransformationSession
 
 router = APIRouter(prefix="/v1/live-transformations", tags=["live-transformations"])
 logger = logging.getLogger("ruinform.live_api")
@@ -131,6 +131,15 @@ async def _render_candidate_job(
     """Render outside the browser request so CDN/Worker timeouts cannot kill the job."""
     cleanup_client = None
     try:
+        current = get_session(session_id)
+        if current.render_job is not None:
+            store().save(
+                current.model_copy(
+                    update={
+                        "render_job": current.render_job.model_copy(update={"status": "running"})
+                    }
+                )
+            )
         logger.info(
             "render async:start session=%s candidate=%s attempts=%s presentation=%s",
             session_id,
@@ -153,6 +162,15 @@ async def _render_candidate_job(
             user_prompt=payload.user_prompt,
             presentation_mode=payload.presentation_mode,
         )
+        current = get_session(session_id)
+        if current.render_job is not None:
+            store().save(
+                current.model_copy(
+                    update={
+                        "render_job": current.render_job.model_copy(update={"status": "completed"})
+                    }
+                )
+            )
         logger.info("render async:done session=%s candidate=%s", session_id, candidate_id)
     except Exception:
         logger.exception("render async:failed session=%s candidate=%s", session_id, candidate_id)
@@ -160,11 +178,10 @@ async def _render_candidate_job(
         _render_failures[session_id] = message
         try:
             current = get_session(session_id)
-            store().save(
-                current.model_copy(
-                    update={"stage": "failed", "last_error": message, "last_error_stage": "render"}
-                )
-            )
+            update = {"stage": "failed", "last_error": message, "last_error_stage": "render"}
+            if current.render_job is not None:
+                update["render_job"] = current.render_job.model_copy(update={"status": "failed"})
+            store().save(current.model_copy(update=update))
         except Exception:
             logger.exception("render async:could not persist failure session=%s", session_id)
     finally:
@@ -250,6 +267,24 @@ async def read_session(session_id: str) -> TransformationSession:
     render_worker_missing = session.stage == "rendering" and (
         active_render is None or active_render.done()
     )
+
+    # Durable resume: a web-service restart destroys in-process asyncio tasks, but the
+    # render job specification is persisted in PostgreSQL. The first status probe after
+    # restart recreates the missing task automatically instead of forcing the user to
+    # retry from the UI.
+    if render_worker_missing and session.render_job is not None and session.render_job.status in {"queued", "running"}:
+        job = session.render_job
+        payload = RenderRequestBody(
+            aspect_ratio=job.aspect_ratio,
+            max_attempts=job.max_attempts,
+            user_prompt=job.user_prompt,
+            presentation_mode=job.presentation_mode,
+        )
+        task = asyncio.create_task(_render_candidate_job(session_id, job.candidate_id, payload))
+        _render_tasks[session_id] = task
+        logger.info("render async:resumed session=%s candidate=%s", session_id, job.candidate_id)
+        return session
+
     if session.stage == "rendering" and (
         session_id in _render_failures or render_worker_missing
     ):
@@ -358,12 +393,21 @@ async def render_start(
         return {"ok": True, "pending": False, "session_id": session_id, "candidate_id": candidate_id, "stage": "completed"}
 
     _render_failures.pop(session_id, None)
+    render_job = RenderJobState(
+        candidate_id=candidate_id,
+        aspect_ratio=payload.aspect_ratio,
+        max_attempts=payload.max_attempts,
+        user_prompt=payload.user_prompt,
+        presentation_mode=payload.presentation_mode,
+        status="queued",
+    )
     session = store().save(
         session.model_copy(
             update={
                 "stage": "rendering",
                 "selected_candidate_id": candidate_id,
                 "render_result": None,
+                "render_job": render_job,
                 "last_error": None,
                 "last_error_stage": None,
             }
